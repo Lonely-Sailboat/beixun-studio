@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>北寻工作室 | BeiXun Studio</title>
+    <link rel="icon" href="./icon.png" type="image/png">
+    <style>
+        /* --- 全局重置与基础样式 --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-image: url('./background.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* 定义入场动画：从上往下淡入 */
+        @keyframes slideFadeIn {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50px); /* 初始位置偏上且透明 */
+            }
+            100% {
+                opacity: 1;
+                transform: translate(-50%, 0); /* 最终位置居中且不透明 */
+            }
+        }
+
+        /* 大椭圆容器 */
+        .main-container {
+            position: absolute;
+            top: 50px; /* 距离浏览器上方 50px */
+            left: 50%; /* 水平居中基准点 */
+            width: 1000px; /* 绝对宽度 1000px */
+            height: 200px; /* 高度统一 200px */
+
+            /* 视觉样式 */
+            background-color: rgba(10, 25, 47, 0.6); /* 半透明深蓝色 */
+            backdrop-filter: blur(10px); /* 毛玻璃模糊效果 */
+            -webkit-backdrop-filter: blur(10px); /* 兼容 Edge/Chrome */
+            border-radius: 100px; /* 高度的一半，形成胶囊形 */
+            border: 1px solid rgba(255, 255, 255, 0.1); /* 极细的边框增加立体感 */
+
+            /* 布局逻辑 */
+            display: flex;
+            justify-content: space-between; /* 左右两端对齐 */
+            align-items: center; /* 垂直居中 */
+            padding: 0; /* 清除内边距 */
+
+            /* 应用动画 */
+            animation: slideFadeIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        /* --- 左侧圆形图片区域 (已更新) --- */
+        .left-circle {
+            height: 200px;
+            width: 200px; /* 宽高相等形成正圆 */
+            border-radius: 100px; /* 100% 或 100px */
+            overflow: hidden; /* 关键：裁剪多余部分，保证圆形 */
+            flex-shrink: 0; /* 关键：防止被挤压变形 */
+            z-index: 2;
+
+            /* 【新增】添加与右侧一致的毛玻璃背景 */
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+
+            /* 【新增】Flex布局确保图片上下左右居中 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .left-circle img {
+            /* 【修改】让图片填满容器并保持比例，实现完美居中 */
+            width: 80%; /* 稍微留一点呼吸感，或者设100%填满 */
+            height: 80%;
+            object-fit: contain; /* 保持图片完整显示，不被裁切 */
+            display: block;
+        }
+
+        /* 右侧小椭圆区域 */
+        .right-ellipse {
+            height: 200px;
+            /* 宽度自适应内容，或者您可以指定固定值 */
+            min-width: 120px;
+            padding: 0 20px; /* 内部留白 */
+
+            /* 视觉样式 */
+            background-color: rgba(255, 255, 255, 0.1); /* 稍微亮一点的背景区分 */
+            border-radius: 100px; /* 保持高度一致 */
+            border: 1px solid rgba(255, 255, 255, 0.05);
+
+            /* 布局逻辑 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0; /* 关键：防止被挤压 */
+            z-index: 2;
+        }
+
+        /* 右侧小椭圆内的图片 */
+        .right-ellipse img {
+            height: 80%; /* 内部图片稍微小一点，留出呼吸感 */
+            width: auto;
+            object-fit: contain;
+            max-width: 100%;
+        }
+
+        /* --- 软件展示区域 (新增) --- */
+        .content-wrapper {
+            margin-top: 300px; /* 避开顶部导航栏 */
+            padding: 20px 5%;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .software-grid {
+            display: grid;
+            /* 关键：一行三个，自动适应宽度 */
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px; /* 卡片之间的间距 */
+        }
+
+        /* 单个软件卡片 */
+        .software-card {
+            position: relative; /* 为内部绝对定位做参照 */
+            aspect-ratio: 1 / 1; /* 强制保持正方形比例 */
+            background: rgba(15, 23, 42, 0.6); /* 深色半透明背景 */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px; /* 圆角正方形 */
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 悬停效果 */
+        .software-card:hover {
+            transform: translateY(-5px);
+            background: rgba(20, 30, 50, 0.8);
+            border-color: rgba(100, 200, 255, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(100, 200, 255, 0.1);
+        }
+
+        /* 软件图标 */
+        .card-icon {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+
+        /* 软件名称 */
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        /* 版本号 */
+        .card-version {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 15px;
+            font-family: monospace; /* 等宽字体显示版本号更好看 */
+        }
+
+        /* 公告区域 */
+        .card-announcement {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-align: center;
+            line-height: 1.5;
+            flex-grow: 1; /* 占据剩余空间，把下载按钮顶到底部 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+        }
+
+        /* 底部操作区容器 */
+        .card-footer {
+            width: 100%;
+            height: 40px; /* 固定高度占位 */
+            position: relative;
+            margin-top: 20px;
+        }
+
+        /* 立即下载按钮 - 绝对定位在右下角 */
+        .download-btn {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            text-decoration: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(37, 99, 235, 0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .download-btn:hover {
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.6);
+        }
+
+        /* 许可协议链接 (可选，放在左下角或者隐藏) */
+        .license-link {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .license-link:hover {
+            color: #fff;
+            text-decoration: underline;
+        }
+
+        /* 公告链接 (可选，放在左下角或者隐藏) */
+        .announcement-link {
+            position: absolute;
+            bottom: 10px;
+            left: 100px; /* 与许可协议链接错开 */
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .announcement-link:hover {
+            color: #fff;
+            text-decoration: underline;
+        }
+
+        /* 响应式调整：屏幕变窄时改为两列或一列 */
+        @media (max-width: 1024px) {
+            .software-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 600px) {
+            .software-grid {
+                grid-template-columns: 1fr;
+            }
+            .main-container {
+                width: 90%; /* 手机端导航栏变窄 */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 顶部导航栏 -->
+    <div class="main-container">
+        <div class="left-circle">
+            <img src="./icon.png" alt="Logo Icon">
+        </div>
+        <div class="right-ellipse">
+            <img src="./logo.png" alt="Small Logo">
+        </div>
+    </div>
+
+    <!-- 主体内容区 -->
+    <div class="content-wrapper">
+        <div class="software-grid">
+
+            <!-- 第一个软件：北寻启屏 -->
+            <div class="software-card">
+                <!-- 图标 -->
+                <img src="北寻启屏/北寻启屏图标.png" alt="北寻启屏图标" class="card-icon">
+
+                <!-- 名称 -->
+                <div class="card-title">北寻启屏</div>
+
+                <!-- 版本号  -->
+                <div class="card-version">版本号：1.1.0.0 更新时间：未知<br>作者：砂糖桔</div>
+
+                <!-- 公告 -->
+                <div class="card-announcement">
+                    正在努力重构，敬请期待~
+                </div>
+
+                <!-- 底部操作区 -->
+                <div class="card-footer">
+                    <!-- 许可协议链接  -->
+                    <a href="北寻启屏/《北寻启屏》软件许可协议.txt" target="_blank" class="license-link">查看许可协议</a>
+                    <!-- 公告链接  -->
+                    <a href="北寻启屏/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
+                    <!-- 下载按钮 (右下角) -->
+                    <a href="北寻启屏/北寻启屏.zip" class="download-btn">立即下载</a>
+                </div>
+            </div>
+
+            <!-- 第二个软件：2048小游戏 -->
+            <div class="software-card">
+                <!-- 图标 -->
+                <img src="2048小游戏/2048小游戏图标.png" alt="2048小游戏图标" class="card-icon">
+
+                <!-- 名称 -->
+                <div class="card-title">2048小游戏</div>
+
+                <!-- 版本号  -->
+                <div class="card-version">版本号：1.0.0.0 更新时间：未知<br>作者：小昊</div>
+
+                <!-- 公告 -->
+                <div class="card-announcement">
+                    一个休闲小游戏，通过合成数字达到更高的分数。
+                </div>
+
+                <!-- 底部操作区 -->
+                <div class="card-footer">
+                    <!-- 许可协议链接  -->
+                    <a href="2048小游戏/《2048小游戏》软件许可协议.txt" target="_blank" class="license-link">查看许可协议</a>
+                    <!-- 公告链接  -->
+                    <a href="2048小游戏/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
+                    <!-- 下载按钮 (右下角) -->
+                    <a href="2048小游戏/2048小游戏.zip" class="download-btn">立即下载</a>
+                </div>
+            </div>
+
+            <!-- 第三个软件：随机点名 -->
+            <div class="software-card">
+                <!-- 图标 -->
+                <img src="随机点名/随机点名图标.png" alt="随机点名图标" class="card-icon">
+
+                <!-- 名称 -->
+                <div class="card-title">随机点名</div>
+
+                <!-- 版本号  -->
+                <div class="card-version">版本号：1.4.5.5 更新时间：2026年6月22日<br>作者：独行于世</div>
+
+                <!-- 公告  -->
+                <div class="card-announcement">
+                    一个随机点名工具，帮助教师快速选择学生，功能齐全，维护实时，包含自动更新功能。
+                </div>
+
+                <!-- 底部操作区 -->
+                <div class="card-footer">
+                    <!-- 许可协议链接  -->
+                    <a href="随机点名/《随机点名》软件许可协议.txt" target="_blank" class="license-link">查看许可协议</a>
+                    <!-- 公告链接  -->
+                    <a href="随机点名/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
+                    <!-- 下载按钮 (右下角) -->
+                    <a href="随机点名/随机点名.zip" class="download-btn">立即下载</a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
