@@ -13,6 +13,25 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --glass-bg:
+                linear-gradient(
+                    135deg,
+                    rgba(255,255,255,0.18),
+                    rgba(255,255,255,0.06)
+                );
+
+            --glass-border:
+                rgba(255,255,255,0.28);
+
+            --glass-shadow:
+                0 8px 32px rgba(0,0,0,0.25),
+                inset 0 1px rgba(255,255,255,0.35),
+                inset 0 -1px rgba(255,255,255,0.08);
+
+            --glass-blur: 30px;
+        }
+
         body {
             background-image: url('./background.jpg');
             background-size: cover;
@@ -23,43 +42,67 @@
             font-family: "Microsoft YaHei", Arial, sans-serif;
             color: #ffffff;
             overflow-x: hidden;
+            padding-bottom: 120px;
         }
 
         /* 定义入场动画：从上往下淡入 */
         @keyframes slideFadeIn {
             0% {
                 opacity: 0;
-                transform: translate(-50%, -50px); /* 初始位置偏上且透明 */
+                transform: translateY(-50px);
             }
             100% {
                 opacity: 1;
-                transform: translate(-50%, 0); /* 最终位置居中且不透明 */
+                transform: translateY(0);
+            }
+        }
+
+        /* 为网格卡片定义专属动画：只从上方淡入 */
+        @keyframes fadeInFromTop {
+            0% {
+                opacity: 0;
+                transform: translateY(-50px); /* 只在垂直方向上偏移 */
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0); /* 垂直方向归位 */
+            }
+        }
+
+        /* 为页脚卡片定义专属动画：只从下方淡入 */
+        @keyframes footerInFromTop {
+            0% {
+                opacity: 0;
+                transform: translateY(50px); /* 只在垂直方向上偏移 */
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0); /* 垂直方向归位 */
             }
         }
 
         /* 大椭圆容器 */
         .main-container {
-            position: absolute;
-            top: 50px; /* 距离浏览器上方 50px */
-            left: 50%; /* 水平居中基准点 */
-            width: 1000px; /* 绝对宽度 1000px */
-            height: 200px; /* 高度统一 200px */
-
+            position: relative;
+            margin: 50px auto 0 auto; /* 上下外边距50px，左右自动居中 */
+            width: 80%; /* 宽度设为浏览器宽度的80% */
+            max-width: 1200px; /* 最大宽度限制为1200px，防止在大屏幕上过宽 */
+            height: 200px;
             /* 视觉样式 */
-            background-color: rgba(10, 25, 47, 0.6); /* 半透明深蓝色 */
-            backdrop-filter: blur(10px); /* 毛玻璃模糊效果 */
-            -webkit-backdrop-filter: blur(10px); /* 兼容 Edge/Chrome */
-            border-radius: 100px; /* 高度的一半，形成胶囊形 */
-            border: 1px solid rgba(255, 255, 255, 0.1); /* 极细的边框增加立体感 */
-
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(115%);
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(115%);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            overflow: hidden;
+            border-radius: 100px;
             /* 布局逻辑 */
             display: flex;
-            justify-content: space-between; /* 左右两端对齐 */
-            align-items: center; /* 垂直居中 */
-            padding: 0; /* 清除内边距 */
-
+            justify-content: space-between;
+            align-items: center;
+            padding: 0;
             /* 应用动画 */
-            animation: slideFadeIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            animation: slideFadeIn 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
 
         /* --- 左侧圆形图片区域 (已更新) --- */
@@ -91,6 +134,18 @@
             display: block;
         }
 
+        /* 中间文本区域 */
+        .center-text {
+            flex: 1; /* 占据剩余空间 */
+            padding: 0 20px; /* 左右留白 */
+            text-align: center;
+            color: #ffffff;
+            text-align: left; /* 左对齐文本 */
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 4px 4px rgba(0,0,0,0.5);
+        }
+
         /* 右侧小椭圆区域 */
         .right-ellipse {
             height: 200px;
@@ -119,9 +174,42 @@
             max-width: 100%;
         }
 
-        /* --- 软件展示区域 (新增) --- */
+        /* 信息卡片 */
+        .info-card {
+            position: relative;
+            line-height: 1.8;
+            width: 1200px;
+            max-width: 90%;
+            margin: 50px auto;
+            background: var(--glass-bg);
+
+            backdrop-filter:
+                blur(var(--glass-blur))
+                saturate(180%)
+                brightness(115%);
+
+            -webkit-backdrop-filter:
+                blur(var(--glass-blur))
+                saturate(180%)
+                brightness(115%);
+
+            border: 1px solid var(--glass-border);
+
+            box-shadow: var(--glass-shadow);
+
+            overflow: hidden;
+            border-radius: 24px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+            transition: all 0.3s ease;
+            animation: fadeInFromTop 2s cubic-bezier(0.5,0.8,0.5,2) forwards;
+        }
+
+        /* --- 软件展示区域 --- */
         .content-wrapper {
-            margin-top: 300px; /* 避开顶部导航栏 */
+            margin-top: 50px;
             padding: 20px 5%;
             max-width: 1400px;
             margin-left: auto;
@@ -137,27 +225,53 @@
 
         /* 单个软件卡片 */
         .software-card {
-            position: relative; /* 为内部绝对定位做参照 */
-            aspect-ratio: 1 / 1; /* 强制保持正方形比例 */
-            background: rgba(15, 23, 42, 0.6); /* 深色半透明背景 */
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px; /* 圆角正方形 */
+            position: relative;
+            aspect-ratio: 1 / 1;
+
+            background: var(--glass-bg);
+
+            backdrop-filter:
+                blur(var(--glass-blur))
+                saturate(180%)
+                brightness(115%);
+
+            -webkit-backdrop-filter:
+                blur(var(--glass-blur))
+                saturate(180%)
+                brightness(115%);
+
+            border: 1px solid var(--glass-border);
+
+            border-radius: 28px;
+
+            box-shadow: var(--glass-shadow);
+
+            overflow: hidden;
+
             padding: 30px;
+
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+            transition: all 0.35s ease;
+            /* 应用动画 */
+            animation: fadeInFromTop 2s cubic-bezier(0.3, 0.9, 0.3, 1.1) forwards;
         }
 
         /* 悬停效果 */
         .software-card:hover {
-            transform: translateY(-5px);
-            background: rgba(20, 30, 50, 0.8);
-            border-color: rgba(100, 200, 255, 0.3);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(100, 200, 255, 0.1);
+            transform:
+                translateY(-8px)
+                scale(1.02);
+
+            box-shadow:
+                0 18px 40px rgba(0,0,0,0.35),
+                inset 0 1px rgba(255,255,255,0.45),
+                inset 0 -1px rgba(255,255,255,0.1);
+
+            border-color:
+                rgba(255,255,255,0.4);
         }
 
         /* 软件图标 */
@@ -175,6 +289,7 @@
             font-weight: bold;
             margin-bottom: 10px;
             text-align: center;
+            text-shadow: 0 4px 4px rgba(0,0,0,0.5);
             letter-spacing: 1px;
         }
 
@@ -183,6 +298,7 @@
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.6);
             margin-bottom: 15px;
+            text-shadow: 0 4px 4px rgba(0,0,0,0.5);
             font-family: monospace; /* 等宽字体显示版本号更好看 */
         }
 
@@ -196,6 +312,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            text-shadow: 0 4px 4px rgba(0,0,0,0.5);
             padding: 0 10px;
         }
 
@@ -205,6 +322,36 @@
             height: 40px; /* 固定高度占位 */
             position: relative;
             margin-top: 20px;
+        }
+
+        /* 按钮容器样式，用于左右布局 */
+        .action-buttons {
+            display: flex;
+            justify-content: center; /* 水平居中 */
+            gap: 20px; /* 按钮之间的间距 */
+            margin-top: 20px;
+        }
+
+        /* 按钮通用样式 */
+        .action-btn {
+            display: inline-block;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ffffff; /* 文字白色 */
+            background-color: #00BFFF; /* 背景天蓝色 (DeepSkyBlue) */
+            border-radius: 12px;
+            text-decoration: none;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 10px rgba(0, 191, 255, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        /* 按钮悬停效果 */
+        .action-btn:hover {
+            background-color: #009ACD; /* 悬停时颜色变深 (DeepSkyBlue4) */
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 191, 255, 0.6);
         }
 
         /* 立即下载按钮 - 绝对定位在右下角 */
@@ -262,6 +409,67 @@
             text-decoration: underline;
         }
 
+        /* --- 页脚样式 --- */
+        .footer {
+            position: fixed;
+            bottom: 20px;
+            /* 使用 Flexbox 居中 */
+            left: 0;
+            right: 0;
+            width: 80%;
+            max-width: 1200px;
+            margin: 0 auto; /* 水平居中关键 */
+            max-width: 1200px; /* 最大宽度限制 */
+            padding: 15px 20px;
+            /* 液态玻璃效果 */
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(30px) saturate(180%) brightness(110%);
+            -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(110%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 50px; /* 椭圆形关键属性 */
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), inset 0 1px rgba(255, 255, 255, 0.35);
+            text-align: center;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 13px;
+            z-index: 114514;
+            overflow: hidden;
+            /* 应用动画 */
+            animation: footerInFromTop 2s cubic-bezier(0.5, 1.1, 0.5, 1.3) forwards;
+        }
+
+        .footer::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.05) 35%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .main-container::before,
+        .info-card::before,
+        .software-card::before,
+        .footer::before {
+            content: "";
+
+            position: absolute;
+
+            top: 0;
+            left: 0;
+            right: 0;
+
+            height: 40%;
+
+            background:
+                linear-gradient(
+                    to bottom,
+                    rgba(255,255,255,0.35),
+                    rgba(255,255,255,0.08),
+                    transparent
+                );
+
+            pointer-events: none;
+        }
+
         /* 响应式调整：屏幕变窄时改为两列或一列 */
         @media (max-width: 1024px) {
             .software-grid {
@@ -277,6 +485,13 @@
             }
         }
     </style>
+    <script>
+        // 动态显示当前年份
+        document.addEventListener("DOMContentLoaded", function() {
+            var currentYear = new Date().getFullYear();
+            document.getElementById('currentYear').textContent = currentYear;
+        });
+    </script>
 </head>
 <body>
 
@@ -285,11 +500,28 @@
         <div class="left-circle">
             <img src="./icon.png" alt="Logo Icon">
         </div>
+        <div class="center-text">
+            <h1 style="font-size: 2rem; color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">欢迎来到<b>北寻工作室官网</b></h1>
+            <p style="font-size: 1rem; color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">最后一次更新时间：2026年6月23日</p>
+        </div>
         <div class="right-ellipse">
             <img src="./logo.png" alt="Small Logo">
         </div>
     </div>
-
+    <!-- 一些信息 -->
+    <div class="info-card">
+        <h2 style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">声明</h2>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">北寻工作室是一个专注于软件开发的团队，致力于为用户提供实用的软件产品。</p>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);"><b>声明：网页创作者和合作伙伴保证所有软件<span style="text-decoration: underline;">没有病毒</span>，如被判为病毒，大概率是误报。</b></p>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);"><b><span style="text-decoration: underline;">若使用时有异常现象，请立即删除，否则后果自负！</span></b></p>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">注意：软件目前仅支持Windows 10及更高版本的电脑操作系统，不支持低于Windows 10版本的操作系统和其他操作系统。</p>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);"><b>本网站暂未启用 HTTPS，所有通信均为公开明文，请勿输入敏感信息！</b></p>
+        <p style="color: #ffffff; text-shadow: 0 4px 4px rgba(0,0,0,0.5);">已有<script language="JavaScript" src="https://free.3v.do/count.asp?id=sunset1"></script>人来过我的网站</p>
+        <div class="action-buttons">
+            <a href="https://free.3v.do/gbook/index.asp?username=sunset1" target="_blank" rel="noopener noreferrer" class="action-btn">进行留言</a>
+            <a href="http://bbs.classhelper.top" target="_blank" rel="noopener noreferrer" class="action-btn">前往论坛</a>
+        </div>
+    </div>
     <!-- 主体内容区 -->
     <div class="content-wrapper">
         <div class="software-grid">
@@ -317,7 +549,7 @@
                     <!-- 公告链接  -->
                     <a href="北寻启屏/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
                     <!-- 下载按钮 (右下角) -->
-                    <a href="北寻启屏/北寻启屏.zip" class="download-btn">立即下载</a>
+                    <a href="error.html" class="download-btn">立即下载</a>
                 </div>
             </div>
 
@@ -375,8 +607,67 @@
                 </div>
             </div>
 
+            <!-- 第四个软件：python转exe工具 -->
+            <div class="software-card">
+                <!-- 图标 -->
+                <img src="python转exe工具/python转exe工具图标.png" alt="python转exe工具图标" class="card-icon">
+
+                <!-- 名称 -->
+                <div class="card-title">python转exe工具</div>
+
+                <!-- 版本号  -->
+                <div class="card-version">版本号：1.0.0 更新时间：未知<br>作者：砂糖桔</div>
+
+                <!-- 公告  -->
+                <div class="card-announcement">
+                    一个python转exe工具，帮助开发者快速将python文件转换为可执行文件。
+                </div>
+
+                <!-- 底部操作区 -->
+                <div class="card-footer">
+                    <!-- 许可协议链接  -->
+                    <a href="python转exe工具/《python转exe工具》软件许可协议.txt" target="_blank" class="license-link">查看许可协议</a>
+                    <!-- 公告链接  -->
+                    <a href="python转exe工具/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
+                    <!-- 下载按钮 (右下角) -->
+                    <a href="python转exe工具/python转exe工具.zip" class="download-btn">立即下载</a>
+                </div>
+            </div>
+
+            <!-- 第五个软件：单词记忆大比拼 -->
+            <div class="software-card">
+                <!-- 图标 -->
+                <img src="单词记忆大比拼/单词记忆大比拼图标.png" alt="单词记忆大比拼图标" class="card-icon">
+
+                <!-- 名称 -->
+                <div class="card-title">单词记忆大比拼</div>
+
+                <!-- 版本号  -->
+                <div class="card-version">版本号：0.1.0.2 更新时间：未知<br>作者：独行于世</div>
+
+                <!-- 公告  -->
+                <div class="card-announcement">
+                    一个单词记忆游戏，帮助学生们快速记忆英语单词。
+                </div>
+
+                <!-- 底部操作区 -->
+                <div class="card-footer">
+                    <!-- 许可协议链接  -->
+                    <a href="单词记忆大比拼/《单词记忆大比拼》软件许可协议.txt" target="_blank" class="license-link">查看许可协议</a>
+                    <!-- 公告链接  -->
+                    <a href="单词记忆大比拼/announcement.txt" target="_blank" class="announcement-link">查看公告</a>
+                    <!-- 下载按钮 (右下角) -->
+                    <a href="单词记忆大比拼/单词记忆大比拼.zip" class="download-btn">立即下载</a>
+                </div>
+            </div>
+
         </div>
     </div>
-
+    <!-- 底部页脚 -->
+    <div class="footer">
+        参与软件开发的成员：砂糖桔、独行于世、小昊<br>
+        如有侵权，请联系发布者    联系方式（电子邮件）：砂糖桔：3690559586@qq.com；小昊：3552989483@qq.com；独行于世：3629740840@qq.com<br>
+        Copyright &copy; <span id="currentYear"></span> BeiXun Studio, 保留所有权利.
+    </div>
 </body>
 </html>
