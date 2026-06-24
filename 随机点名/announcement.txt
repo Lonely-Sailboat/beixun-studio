@@ -10,10 +10,6 @@
 2：移动窗口新增惯性功能，拖动即可体验；
 3：修复了初次使用时名单和组名消失的问题。
 
-如果无法自动更新，请去官网手动更新
-http://sunset1.3vzhuji.cn
-https://lonely-sailboat.github.io/beixun-studio
-
 任何问题或意见可以向我反馈
 反馈链接：https://free.3v.do/gbook/index.asp?username=sunset1
 也可以前往【更多设置】-【意见反馈】进行反馈，开发者会不定期征集大家对于软件的任何意见。
