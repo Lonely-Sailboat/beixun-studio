@@ -1,0 +1,1900 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2026, sunset1
+# 纯import
+import ctypes
+import os
+import sys
+
+# 算法类
+from base64 import b85encode, b85decode, b32encode, b32decode
+from hashlib import sha256
+from random import randint
+from re import compile, fullmatch, match
+from secrets import token_hex
+from unicodedata import east_asian_width, category
+from ast import literal_eval as li_eval
+from uuid import getnode
+from io import BytesIO
+
+# 时间类
+from datetime import datetime
+from time import time, perf_counter
+
+# 网络请求类
+from requests import get
+from email.header import Header
+from email.mime.text import MIMEText
+from smtplib import SMTP_SSL, SMTPException
+from ftplib import FTP
+
+# Windows文件操作类
+from win32file import GetFileAttributes, SetFileAttributes
+
+# GUI界面类
+from PySide6.QtWidgets import *
+from PySide6.QtGui import *
+from PySide6.QtCore import *
+
+# Windows安全与权限类
+from ntsecuritycon import FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_ALL_ACCESS, DELETE, \
+    FILE_DELETE_CHILD
+from pywintypes import error as PyWinError
+from win32security import ConvertStringSidToSid, SECURITY_DESCRIPTOR, SetFileSecurity, ACL, ACL_REVISION_DS, \
+    DACL_SECURITY_INFORMATION
+
+# 屏幕与窗口信息类
+from screensize import GetPhysicalSize, GetVirtualSize
+from win32gui import GetWindowRect, FindWindow
+
+# Windows注册表类
+from winreg import QueryValueEx, OpenKey, HKEY_CURRENT_USER
+
+# 必要的设置
+# 定时器精度
+ctypes.windll.winmm.timeBeginPeriod(1)
+# 禁用高dpi适配
+ctypes.windll.shcore.SetProcessDpiAwareness(0)
+
+# 基础数据
+# 先把需要动态计算的值算出来
+version = "1.1.0.0"
+website = "http://sunset1.3vftp.cn"
+fps = 60
+all_sleep_time = 1 / fps
+screen_width, screen_height = GetVirtualSize()
+source_width, source_height = GetPhysicalSize()
+ten_nums = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+weekdays_zh = {'Monday': '星期一', 'Tuesday': '星期二', 'Wednesday': '星期三', 'Thursday': '星期四',
+               'Friday': '星期五', 'Saturday': '星期六', 'Sunday': '星期日'}
+update_di = [{'update_version': '1.1.0.0', 'update_time': 'yyyy年mm月dd日',
+              'update_texts': ["全新出版，运行稳定，可以保护你的桌面信息"]}]
+weather_dict = {"提示": "等待响应……",
+                "位置": "正在获取……",
+                "天气": "正在获取……",
+                "风向": "正在获取……",
+                "温度": "正在获取……",
+                "湿度": "正在获取……"}
+# 信任安装程序权限
+everyone_sid = ConvertStringSidToSid("S-1-1-0")
+
+# 路径与资源
+pack_path = fr"{os.getenv('AppData')}\Microsoft\Windows\Start Menu\Programs\BeiXunLockScreen"
+log_path = fr"{os.getenv('AppData')}\Microsoft\Windows\Start Menu\Programs\BeiXunLockScreenRunTime.log"
+executables = sys.executable if getattr(sys, 'frozen', False) else __file__
+icon_path = os.path.join(sys._MEIPASS, 'sunset-images\\icon.ico') if getattr(sys, 'frozen', False) else os.path.join(
+    os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else __file__), 'sunset-images\\icon.ico')
+homepage_bg_path = os.path.join(sys._MEIPASS, 'sunset-images\\background.jpg'
+                                ) if getattr(sys, 'frozen', False) else os.path.join(os.path.dirname(
+    sys.executable if getattr(sys, 'frozen', False) else __file__), 'sunset-images\\background.jpg')
+icon_png_path = os.path.join(sys._MEIPASS, 'sunset-images\\icon.png') if getattr(sys, 'frozen',
+                                                                                 False) else os.path.join(
+    os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else __file__), 'sunset-images\\icon.png')
+logo_path = os.path.join(sys._MEIPASS, 'sunset-images\\logo.png') if getattr(sys, 'frozen', False) else os.path.join(
+    os.path.dirname(sys.executable if getattr(sys, 'frozen', False) else __file__), 'sunset-images\\logo.png')
+desktop_path = QueryValueEx(OpenKey(HKEY_CURRENT_USER,
+                                    r'Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'), "Desktop")[0]
+
+# 正则表达式
+chinese_pattern = compile(r'[\u4e00-\u9fff\uFF01-\uFF5E\u3000-\u303F\u2010-\u2015\u2018-\u201B\u201C-\u201F\u2026'
+                          r'\u2032-\u203A\u2044\u300A-\u300F\u301D\u301E\u3014-\u3015\uFF5B-\uFF5E'
+                          r'\u3001\uFF0C\uFF1A\uFF1B\uFF1F\u3002]')
+english_pattern = compile(r'^[a-zA-Z0-9\s\.\,\?\!\:\;\'\"\(\)\[\]\{\}\-\_\@#\$\%\^\&\*\/\\\|\<\>\=\+\~\`\,]+$')
+combined_pattern = compile('^[a-zA-Z0-9\s\.\,\?\!\:\;\'\"\(\)\[\]\{\}\-\_\@#\$\%\^\&\*\/\\\|\<\>\=\+\~\`\u4e00-\u9fff'
+                           '\uFF01-\uFF5E\u3000-\u303F\u2010-\u2015\u2018-\u201B\u201C-\u201F\u2026\u2032-\u203A\u2044'
+                           '\u300A-\u300F\u301D\u301E\u3014-\u3015\uFF5B-\uFF5E\u3001\uFF0C\uFF1A\uFF1B\uFF1F\u3002]+$')
+
+# 核心保密数据
+salt = token_hex(32)
+lock_password = None
+
+user_name = "游客"
+email = "example@example.com"
+last_login_time = time()
+
+file_version = "0.0.0.0"
+lock_flag = False
+unlock_error_time = 0.0
+unlock_error_num = 0
+email_send_time = 0.0
+check_code_error_num = 0
+check_code_error_time = 0.0
+last_login_id = "0"
+
+psw_path = fr"{pack_path}\pswdata.dll"
+user_path = fr"{pack_path}\userdata.dll"
+sls_path = fr"{pack_path}\slsdata.dll"
+
+pswdata = {
+    "salt": salt,
+    "lock_password": lock_password
+}
+
+userdata = {
+    "0": {"name": user_name, "email": email, "last_login_time": last_login_time}
+}
+
+slsdata = {
+    "file_version": file_version,
+    "lock_flag": lock_flag,
+    "unlock_error_time": unlock_error_time,
+    "unlock_error_num": unlock_error_num,
+    "email_send_time": email_send_time,
+    "check_code_error_num": check_code_error_num,
+    "check_code_error_time": check_code_error_time,
+    "last_login_id": last_login_id,
+}
+
+# 有关UI的变量
+# 是否允许快捷键控制窗口显隐
+key_show_flag = True
+# 分辨率与缩放
+screen_width = screen_width
+screen_height = screen_height
+source_width = source_width
+source_height = source_height
+width_scaling = source_width / screen_width
+height_scaling = source_height / screen_height
+# 页面编号与动态图片列表和下标
+page_num = 1
+bg_images = []
+sad_images = []
+bg_index = 0
+sad_index = 0
+# 动态计算的 UI 尺寸
+# 圆角半径
+corner_radius = int(screen_height / (1080 / 20))
+# 间距
+spacing = int(screen_height / (1080 / 10))
+# 主窗口宽高
+win_width = int(screen_width / (1920 / 1280))
+win_height = int(screen_height / (1080 / 720))
+# logo的宽高
+logo_width = int(screen_width / (1920 / 600))
+logo_height = int(screen_height / (1080 / 200))
+
+# 父容器子页面宽高
+f_width = int(screen_width / (1920 / 960))
+f_height = int(screen_height / (1080 / 540))
+
+
+# 花里胡哨的报错
+class AppErrors(Exception):
+    pass
+
+
+class UnknownError(AppErrors):
+    def __init__(self, error_type, error_message):
+        super().__init__(f"未知错误。错误类型：{error_type}，错误信息：{error_message}。")
+
+
+class ChangeFileTypesError(AppErrors):
+    def __init__(self, message):
+        super().__init__(f"没有“{message}”这个类型。")
+
+
+class FileNotCoreError(AppErrors):
+    def __init__(self, message):
+        super().__init__(f"文件“{message}”非核心文件。")
+
+
+class CheckFilestatusError(AppErrors):
+    def __init__(self, message):
+        super().__init__(f"不受支持的文件：“{message}”。")
+
+
+# 全局字体
+def font(size=20, family="楷体"):
+    return QFont(family, int(screen_height / (1080 / size)))
+
+
+# 带轮廓文本
+class OutlinedLabel(QLabel):
+    def __init__(self, text="", parent=None,
+                 text_color="white", outline_color="black", outline_width=2):
+        super().__init__(text, parent)
+        self.text_color = QColor(text_color)
+        self.outline_color = QColor(outline_color)
+        self.outline_width = outline_width
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        custom_font = self.font()
+        painter.setFont(custom_font)
+        path = QPainterPath()
+        text_rect = painter.fontMetrics().boundingRect(self.text())
+        rect = self.contentsRect()
+        x = rect.x() + (rect.width() - text_rect.width()) / 2 - text_rect.x()
+        y = rect.y() + (rect.height() - text_rect.height()) / 2 - text_rect.y()
+        path.addText(x, y, custom_font, self.text())
+        pen = QPen(self.outline_color, self.outline_width)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(path)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self.text_color)
+        painter.drawPath(path)
+
+
+# 仿超链接文本
+class ClickableLabel(QLabel):
+    # 1. 定义一个自定义信号
+    clicked = Signal()
+
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+
+    def mousePressEvent(self, event):
+        # 仅响应鼠标左键按下
+        if event.button() == Qt.LeftButton:
+            # 可以在这里记录按下状态，或者什么都不做
+            pass
+        # 必须调用父类方法，保证默认行为正常
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        # 3. 在鼠标左键松开时触发点击
+        if event.button() == Qt.LeftButton:
+            # 检查鼠标是否还在控件范围内（防止用户按住鼠标滑出去再松开也触发）
+            if self.rect().contains(event.position().toPoint()):
+                self.clicked.emit()  # 发射信号
+        super().mouseReleaseEvent(event)
+
+
+# 滑动开关
+class SwitchButton(QWidget):
+    clicked = Signal()
+
+    def __init__(self, root, animation_time=500):
+        super().__init__(root)
+        self._animation_time = animation_time
+        # 内部状态
+        self._is_on = False
+        self._is_enabled = True
+        self._gap = 4  # 椭圆与圆形之间的高度间隙
+        # 颜色定义
+        self._color_on = QColor("#4CAF50")  # 绿色
+        self._color_off = QColor("#F44336")  # 红色
+        self._color_disabled = QColor("#BDBDBD")  # 灰色
+        self._color_knob = QColor("#FFFFFF")  # 白色圆形
+        # 动画属性变量
+        self._anim_progress = 0.0  # 0.0 表示关, 1.0 表示开
+        # 位置动画 (圆形移动)
+        self._pos_anim = QPropertyAnimation(self, b"anim_progress")
+        self._pos_anim.setDuration(self._animation_time)
+        self._pos_anim.setEasingCurve(QEasingCurve.InOutCubic)
+        # 设置默认尺寸 (宽60, 高30)
+        self.resize(int(screen_width / (1920 / 80)), int(screen_height / (1080 / 40)))
+
+    def get_anim_progress(self):
+        return self._anim_progress
+
+    def set_anim_progress(self, value):
+        self._anim_progress = value
+        self.update()  # 触发重绘，实现颜色和位置的平滑过渡
+
+    anim_progress = Property(float, get_anim_progress, set_anim_progress)
+
+    def _animate_to(self, target):
+        self._pos_anim.stop()
+        self._pos_anim.setStartValue(self._anim_progress)
+        self._pos_anim.setEndValue(target)
+        self._pos_anim.start()
+
+    def setStatus(self, flag: bool):
+        self._is_on = flag
+        self._anim_progress = 1.0 if flag else 0.0
+        self.update()
+
+    def setEnable(self, flag: bool):
+        self._is_enabled = flag
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            # 无论什么状态都发送 clicked 信号
+            self.clicked.emit()
+            # 仅在启用状态下切换状态并执行动画
+            if self._is_enabled:
+                self._is_on = not self._is_on
+                target = 1.0 if self._is_on else 0.0
+                self._animate_to(target)
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = self.width()
+        h = self.height()
+        knob_diameter = h - (self._gap * 2)
+        # 1. 绘制背景椭圆 (颜色根据 anim_progress 渐变)
+        bg_color = QColor()
+        bg_color.setRed(
+            int(self._color_off.red() + (self._color_on.red() - self._color_off.red()) * self._anim_progress))
+        bg_color.setGreen(
+            int(self._color_off.green() + (self._color_on.green() - self._color_off.green()) * self._anim_progress))
+        bg_color.setBlue(
+            int(self._color_off.blue() + (self._color_on.blue() - self._color_off.blue()) * self._anim_progress))
+        # 如果禁用，覆盖为灰色
+        if not self._is_enabled:
+            bg_color = self._color_disabled
+        painter.setBrush(bg_color)
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(0, 0, w, h, h / 2, h / 2)
+        # 2. 绘制圆形滑块 (位置根据 anim_progress 计算)
+        max_x = w - h
+        current_x = max_x * self._anim_progress
+        knob_rect = QRect(int(current_x + self._gap), self._gap, knob_diameter, knob_diameter)
+
+        painter.setBrush(self._color_knob)
+        painter.drawEllipse(knob_rect)
+
+    def resizeEvent(self, event):
+        # resize 由 Qt 自动处理，这里只需确保重绘即可
+        self.update()
+        super().resizeEvent(event)
+
+
+# 日志文件操作
+def write_log(text_type, text):
+    std_in = f'[type: "{text_type}", time: "{datetime.fromtimestamp(time())}"]\n{text}\n\n{"=" * 10}\n'
+    if not os.path.isfile(log_path):
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write("")
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(std_in)
+        f.flush()
+        os.fsync(f.fileno())
+
+
+# 文件(夹)权限修改
+def set_permission(path=pack_path, is_dir=True, allow=True):
+    if not os.path.exists(path):
+        if is_dir:
+            os.makedirs(path, exist_ok=True)
+        else:
+            with open(path, "w") as tf:
+                tf.write("")
+                tf.flush()
+                os.fsync(tf.fileno())
+    dir_permissions = FILE_ALL_ACCESS
+    file_permissions = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE
+    dacl = ACL()
+    if allow:
+        dacl.AddAccessAllowedAceEx(ACL_REVISION_DS, 0, dir_permissions if is_dir else file_permissions, everyone_sid)
+    else:
+        dacl.AddAccessDeniedAceEx(ACL_REVISION_DS, 0, dir_permissions if is_dir else file_permissions, everyone_sid)
+    sd = SECURITY_DESCRIPTOR()
+    sd.SetSecurityDescriptorDacl(True, dacl, False)
+    SetFileSecurity(path, DACL_SECURITY_INFORMATION, sd)
+    del dacl, sd
+
+
+def change_file(file_path: str, types: str = "w", text="", set_dir_permission_flag: bool = True):
+    try:
+        c = None
+        if set_dir_permission_flag:
+            set_permission()
+        set_permission(file_path, False)
+        if types == "w":
+            if file_path == psw_path:
+                pswdata = {
+                    "salt": salt,
+                    "lock_password": lock_password
+                }
+                text = str(pswdata)
+            elif file_path == user_path:
+                userdata = {
+                    "0": {"name": user_name, "email": email, "last_login_time": last_login_time}
+                }
+                text = str(userdata)
+            elif file_path == sls_path:
+                slsdata = {
+                    "file_version": file_version,
+                    "lock_flag": lock_flag,
+                    "unlock_error_time": unlock_error_time,
+                    "unlock_error_num": unlock_error_num,
+                    "email_send_time": email_send_time,
+                    "check_code_error_num": check_code_error_num,
+                    "check_code_error_time": check_code_error_time,
+                    "last_login_id": last_login_id,
+                }
+                text = str(slsdata)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_base(str(text)))
+                f.flush()
+                os.fsync(f.fileno())
+        elif types == "r":
+            with open(file_path, "r", encoding="utf-8") as f:
+                c = new_base(f.read(), True)
+        else:
+            set_permission(file_path, False, False)
+            if set_dir_permission_flag:
+                set_permission(allow=False)
+            raise ChangeFileTypesError(types)
+        set_permission(file_path, False, False)
+        if set_dir_permission_flag:
+            set_permission(allow=False)
+        return c
+    except Exception as e:
+        write_log("Error in change_file", f"{e.__class__.__name__}: {e}")
+        set_permission(file_path, False, False)
+        if set_dir_permission_flag:
+            set_permission(allow=False)
+
+
+# 获取任务栏方向和最短长度
+def get_taskbar():
+    taskbar_direction, taskbar_shortest_distance = ('bottom', 48)
+    try:
+        tmp_taskbar_x1, tmp_taskbar_y1, tmp_taskbar_x2, tmp_taskbar_y2 = GetWindowRect(
+            FindWindow("Shell_TrayWnd", None))
+        if tmp_taskbar_x1 == source_width or tmp_taskbar_x2 == source_width or tmp_taskbar_y1 == source_height or tmp_taskbar_y2 == source_height:
+            taskbar_x1 = int(tmp_taskbar_x1 / width_scaling)
+            taskbar_y1 = int(tmp_taskbar_y1 / height_scaling)
+            taskbar_x2 = int(tmp_taskbar_x2 / width_scaling)
+            taskbar_y2 = int(tmp_taskbar_y2 / height_scaling)
+        else:
+            taskbar_x1 = tmp_taskbar_x1
+            taskbar_y1 = tmp_taskbar_y1
+            taskbar_x2 = tmp_taskbar_x2
+            taskbar_y2 = tmp_taskbar_y2
+    except PyWinError as tpe:
+        taskbar_direction, taskbar_shortest_distance = ('none', 0)
+        write_log("Error in get_taskbar", f"{tpe.__class__.__name__}: {tpe}")
+    else:
+        if taskbar_x1 == 0 and taskbar_x2 == screen_width:  # 上下
+            if taskbar_y1 <= 0:  # 上
+                taskbar_direction, taskbar_shortest_distance = "top", taskbar_y2
+            elif taskbar_y2 >= screen_height:  # 下
+                taskbar_direction, taskbar_shortest_distance = 'bottom', screen_height - taskbar_y1
+            else:
+                write_log("Unknown Data in get_taskbar", f"{taskbar_x1}, {taskbar_y1}), ({taskbar_x2}, {taskbar_y2}")
+        elif taskbar_y1 == 0 and taskbar_y2 == screen_height:  # 左右
+            if taskbar_x1 <= 0:  # 左
+                taskbar_direction, taskbar_shortest_distance = "left", taskbar_x2
+            elif taskbar_x2 >= screen_width:  # 右
+                taskbar_direction, taskbar_shortest_distance = ('right', screen_width - taskbar_x1)
+            else:
+                write_log("Unknown Data in get_taskbar", f"{taskbar_x1}, {taskbar_y1}), ({taskbar_x2}, {taskbar_y2}")
+        else:
+            write_log("Unknown Data in get_taskbar", f"{taskbar_x1}, {taskbar_y1}), ({taskbar_x2}, {taskbar_y2}")
+    return taskbar_direction, taskbar_shortest_distance
+
+
+# 自研可逆加密（True为解密，False为加密）
+def new_base(text: str, flag: bool = False):
+    magic_psw1 = "神秘东方汉字"
+    magic_psw2 = "抖音搜砂糖桔，抖音号SugarOrange1145".encode()
+    magic_psw3 = "中华人民共和国共产党万岁".encode()
+    if not flag:
+        step1 = text + magic_psw1
+        step2 = step1[::-1]
+        step3 = step2.encode()
+        step4 = magic_psw2 + step3
+        step5 = b85encode(step4) + magic_psw3
+        step6 = b85encode(step5).decode()
+        step7 = step6[::-1]
+        return step7
+    else:
+        step7 = text[::-1]
+        step6 = step7.encode()
+        step5 = b85decode(step6)
+        step4 = step5[:-len(magic_psw3)]
+        step3 = b85decode(step4)
+        step2 = step3[len(magic_psw2):]
+        step1 = step2.decode('utf-8')[::-1]
+        return step1[:-len(magic_psw1)]
+
+
+def hash_base(text, salt=salt) -> str:
+    return sha256(("支持北寻启屏" + text + "中华人民共和国共产党万岁" + salt)[::-1].encode()).hexdigest()
+
+
+def assess_network_status():
+    try:
+        response = get(website, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        write_log("Error in assess_network_status", f"{e.__class__.__name__}: {e}")
+        return False
+
+
+def get_mac_address():
+    mac = getnode()
+    mac_str = '-'.join(('%012X' % mac)[i:i + 2] for i in range(0, 12, 2))
+    return mac_str
+
+
+def check_name(text):
+    if not text or "@" in text:
+        return False
+    current_length = 0
+    has_non_space = False
+    has_non_digit = False
+    for char in text:
+        if category(char) == 'Cc':
+            return False
+        if char != ' ':
+            has_non_space = True
+        if not char.isdigit():
+            has_non_digit = True
+        width_type = east_asian_width(char)
+        if width_type in 'WFA':
+            current_length += 2
+        else:
+            current_length += 1
+        if current_length > 16:
+            return False
+    return has_non_space and has_non_digit
+
+
+def check_psw(text):
+    return bool(8 <= len(text) <= 32 and english_pattern.match(text))
+
+
+def check_email(text):
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$'
+    formatted_email = text.strip()
+    return formatted_email and match(pattern, formatted_email)
+
+
+# ================= 内部工具函数 =================
+def read_and_parse_json(file_name):
+    set_permission()
+    if not os.path.isfile(file_name):
+        set_permission(allow=False)
+        return False, "file_not_exist"
+
+    try:
+        content = li_eval(change_file(file_name, "r"))
+    except Exception as e:
+        write_log(f"Error from read_and_parse_json '{file_name}'", f"{e.__class__.__name__}: {e}")
+        set_permission(allow=False)
+        return False, "decode_error"
+
+    if not isinstance(content, dict):
+        set_permission(allow=False)
+        return False, "content_is_not_dict"
+
+    set_permission(allow=False)
+    return True, content
+
+
+# ================= 独立校验逻辑 =================
+
+def check_pswdata(content):
+    # 1. 检查必要的键是否存在
+    for key in pswdata:
+        if key not in content:
+            return False, "key_not_exist"
+
+    # 2. 校验 salt 格式 (必须是64位十六进制字符串)
+    tmp_salt = content["salt"]
+    if not isinstance(tmp_salt, str) or len(tmp_salt) != 64 or not fullmatch(r'[0-9a-f]+', tmp_salt):
+        return False, "salt_error"
+
+    # 3. 校验 lock_password 格式
+    if not isinstance(content["lock_password"], str) or not check_psw(content["lock_password"]):
+        return False, "lock_password_error"
+
+    return True, "Normal"
+
+
+def check_userdata(content):
+    # 不允许用户文件为空字典
+    if len(content) == 0:
+        return False, "length_is_zero"
+
+    for sunset_id, tmp_user_data in content.items():
+        # 校验用户ID格式
+        if not isinstance(sunset_id, str):
+            return False, "sunset_id_is_not_str"  # 修复了之前的笔误
+        if sunset_id != "0" and not (8 <= len(sunset_id) <= 11):
+            return False, "sunset_id_error"
+
+        # 校验用户数据字典
+        if not isinstance(tmp_user_data, dict):
+            return False, "user_data_is_not_dict"
+
+        # 校验昵称
+        if "name" not in tmp_user_data or not isinstance(tmp_user_data["name"], str) or not check_name(
+                tmp_user_data["name"]):
+            return False, "name_error"
+
+        # 校验邮箱
+        if "email" not in tmp_user_data or not isinstance(tmp_user_data["email"], str) or not check_email(
+                tmp_user_data["email"]):
+            return False, "email_error"
+
+        # 校验最后登录时间 (必须是 float 且不能大于当前时间)
+        if "last_login_time" not in tmp_user_data or not isinstance(tmp_user_data["last_login_time"], float) or \
+                tmp_user_data["last_login_time"] > time():
+            return False, "last_login_time_error"
+
+    return True, "Normal"
+
+
+def check_slsdata(content):
+    # 1. 检查必要的键是否存在
+    for key in slsdata:
+        if key not in content:
+            return False, "key_not_exist"
+
+    # 2. 逐一校验各个状态字段的数据类型
+    if not isinstance(content["file_version"], str):
+        return False, "file_version_is_not_str"
+    if not isinstance(content["lock_flag"], bool):
+        return False, "lock_flag_is_not_bool"
+    if not isinstance(content["unlock_error_time"], float):
+        return False, "unlock_error_time_is_not_float"
+    if not isinstance(content["unlock_error_num"], int):
+        return False, "unlock_error_num_is_not_int"
+    if not isinstance(content["email_send_time"], float):
+        return False, "email_send_time_is_not_float"
+
+    return True, "Normal"
+
+
+def check_file_status(file_name):
+    # 1. 统一读取和基础校验
+    result, content_or_reason = read_and_parse_json(file_name)
+    if not result:
+        return result, content_or_reason
+    # 2. 路由分发到具体的校验逻辑
+    if file_name == psw_path:
+        return check_pswdata(content_or_reason)
+    elif file_name == user_path:
+        return check_userdata(content_or_reason)
+    elif file_name == sls_path:
+        return check_slsdata(content_or_reason)
+    else:
+        # 如果传入了未知的文件路径，抛出异常
+        raise FileNotCoreError(file_name)
+
+
+class Functions:
+    def __init__(self):
+        self.check_code = {"email": "example@example.com", "check_code": "9178132778"}
+
+    def clear_all_components(self, frame, flag=True):
+        for widget in frame.children():
+            if isinstance(widget, QWidget):
+                widget.deleteLater()
+        if not flag:
+            frame.hide()
+
+    def start_animation(self, big_text, ver_text, logo_label, i=1, first_func=None):
+        start_time = perf_counter()
+        if i == 40:
+            pages.frames_pos_set_flags[id(logo_label)]["y"] = True
+        else:
+            pages.frames_pos_set_flags[id(logo_label)]["y"] = False
+        if i > 20:
+            pages.frames_pos_set_flags[id(big_text)]["y"] = True
+            pages.frames_pos_set_flags[id(ver_text)]["x"] = True
+            pages.frames_pos_set_flags[id(ver_text)]["y"] = True
+        if i > 80:
+            del pages.frames_pos_set_flags[id(logo_label)]
+            QTimer.singleShot(0, first_func)
+            return
+        if i <= 20:
+            big_text.move(big_text.x(), big_text.y() + (20 - i))
+            ver_text.move(ver_text.x() + (20 - i), ver_text.y() + (20 - i))
+        if i <= 80:
+            logo_label.move(logo_label.x(), logo_label.y() + abs(40 - i))
+
+        QTimer.singleShot(max(0, (all_sleep_time - (perf_counter() - start_time)) * 1000) if i != 40 else 500,
+                          lambda: self.start_animation(big_text, ver_text, logo_label, i + 1, first_func))
+
+    def in_frame_animation(self, frame, frame_effect=None, i=1, click_flag=False, direction="left"):
+        start_time = perf_counter()
+        if click_flag:
+            frame.raise_()
+            if pages.move_statuss[id(frame)] == "stay":
+                if direction == "left":
+                    frame.move((win_width - f_width) // 2 + ((1 + 49) * 49 / 2), (win_height - f_height) // 2)
+                else:
+                    frame.move((win_width - f_width) // 2 - ((1 + 49) * 49 / 2), (win_height - f_height) // 2)
+            pages.move_statuss[id(frame)] = "in"
+            pages.frames_pos_set_flags[id(frame)]["x"] = False
+        if pages.move_statuss[id(frame)] != "in":
+            return
+        if i > 50 or frame.graphicsEffect().opacity() >= 1 or direction == "left" and frame.x() - (50 - i) <= (
+                win_width - f_width) // 2 or direction == "right" and frame.x() + (50 - i) >= (
+                win_width - f_width) // 2:
+            frame.move((win_width - f_width) // 2, (win_height - f_height) // 2)
+            frame_effect.setOpacity(1)
+            frame.setGraphicsEffect(frame_effect)
+            pages.move_statuss[id(frame)] = "stay"
+            pages.frames_pos_set_flags[id(frame)]["x"] = True
+            return
+        frame_effect.setOpacity(frame.graphicsEffect().opacity() + 0.02)
+        frame.setGraphicsEffect(frame_effect)
+        if direction == "left":
+            frame.move(frame.x() - (50 - i), frame.y())
+        else:
+            frame.move(frame.x() + (50 - i), frame.y())
+        QTimer.singleShot(max(0, (all_sleep_time - (perf_counter() - start_time)) * 1000),
+                          lambda: self.in_frame_animation(frame, frame_effect, i + 1, click_flag=False,
+                                                          direction=direction))
+
+    def out_frame_animation(self, frame, frame_effect=None, i=1, click_flag=False, direction="left", on_finish=None):
+        start_time = perf_counter()
+        if click_flag:
+            frame.raise_()
+            pages.move_statuss[id(frame)] = "out"
+            pages.frames_pos_set_flags[id(frame)]["x"] = False
+
+        if pages.move_statuss[id(frame)] != "out":
+            return
+        if i > 50 or frame.graphicsEffect().opacity() <= 0 or direction == "left" and frame.x() + f_width <= 0 or direction == "right" and frame.x() >= win_width:
+            frame_effect.setOpacity(0)
+            frame.setGraphicsEffect(frame_effect)
+            pages.move_statuss[id(frame)] = "stay"
+            self.clear_all_components(frame, False)
+            QTimer.singleShot(0, on_finish)
+            return
+        frame_effect.setOpacity(frame.graphicsEffect().opacity() - 0.02)
+        frame.setGraphicsEffect(frame_effect)
+        if direction == "left":
+            frame.move(frame.x() - i, frame.y())
+        else:
+            frame.move(frame.x() + i, frame.y())
+        QTimer.singleShot(max(0, (all_sleep_time - (perf_counter() - start_time)) * 1000),
+                          lambda: self.out_frame_animation(frame, frame_effect, i + 1, click_flag=False,
+                                                           direction=direction, on_finish=on_finish))
+
+    def agreeing_agreement(self, *labels):
+        global page_num
+        page_num = 2
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.account_login()
+        self.out_frame_animation(pages.fu_frame, frame_effect=pages.fu_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.al_frame, frame_effect=pages.al_effect,
+                                                                           click_flag=True))
+
+    def back_agreement(self, *labels):
+        global page_num
+        page_num = 1
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.agree_agreement()
+        self.out_frame_animation(pages.al_frame, frame_effect=pages.al_effect, click_flag=True, direction="right",
+                                 on_finish=lambda: self.in_frame_animation(pages.fu_frame, frame_effect=pages.fu_effect,
+                                                                           click_flag=True, direction="right"))
+
+    def back_login(self, *labels):
+        global page_num
+        page_num = 2
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.account_login()
+        self.out_frame_animation(pages.ar_frame, frame_effect=pages.ar_effect, click_flag=True, direction="right",
+                                 on_finish=lambda: self.in_frame_animation(pages.al_frame, frame_effect=pages.al_effect,
+                                                                           click_flag=True, direction="right"))
+
+    def back_registration(self, *labels):
+        global page_num
+        page_num = 3
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.account_registration()
+        self.out_frame_animation(pages.ps_frame, frame_effect=pages.ps_effect, click_flag=True, direction="right",
+                                 on_finish=lambda: self.in_frame_animation(pages.ar_frame, frame_effect=pages.ar_effect,
+                                                                           click_flag=True, direction="right"))
+
+    def next_registration(self, *labels):
+        global page_num
+        page_num = 3
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.account_registration()
+        self.out_frame_animation(pages.al_frame, frame_effect=pages.al_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.ar_frame, frame_effect=pages.ar_effect,
+                                                                           click_flag=True))
+
+    def set_privacy(self, *labels):
+        global page_num
+        page_num = 4
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.privacy_settings()
+        self.out_frame_animation(pages.al_frame, frame_effect=pages.al_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.ps_frame, frame_effect=pages.ps_effect,
+                                                                           click_flag=True))
+
+    def send_email(self, email_entry, btn):
+        global email_send_time
+        # 判断时间是否满足
+        if time() - email_send_time < 600:
+            btn.setText("重新发送")
+            QMessageBox.warning(win, "警告",
+                                f"请等待{int((600 - (time() - email_send_time)) / 60)}分{int((600 - (time() - email_send_time)) % 60)}秒后再试！")
+            return
+        # # 检测邮箱有效性
+        formatted_email = email_entry.text().strip()
+        if not check_email(formatted_email):
+            QMessageBox.critical(win, "错误", "邮箱格式不正确，请检查后重试！")
+            return
+        # 生成验证代码
+        self.check_code["check_code"] = "".join([ten_nums[randint(0, 9)] for _ in range(10)])
+        texts = {
+            3: {
+                "title": "《北寻启屏》账号注册验证",
+                "message": f"您好！您正在尝试在《北寻启屏》内注册新账号。请保管好您收到的验证代码！\n{'=' * 10}\n验证代码：{self.check_code['check_code']}\n{'=' * 10}\n10分钟内有效。请将验证代码输入至验证代码输入框内，完成用户注册！"
+            }
+        }
+        # 立刻加密防止被读内存破解出验证代码，指向当前创建的邮箱
+        self.check_code = {"email": formatted_email, "check_code": hash_base(self.check_code["check_code"])}
+        password = 'zylpjeufvolxccaj'
+        sender = '3989167773@qq.com'
+        message = MIMEText(texts[page_num]["message"], 'plain', 'utf-8')
+        message['From'] = Header(sender)
+        message['To'] = Header(formatted_email)
+        message['Subject'] = Header(texts[page_num]["title"])
+        try:
+            smtpObj = SMTP_SSL('smtp.qq.com', 465)
+            smtpObj.login(sender, password)
+            smtpObj.sendmail(sender, formatted_email, message.as_string())
+            email_send_time = time()
+            change_file(sls_path, "w")
+            btn.setText("重新发送")
+            QMessageBox.information(win, "提示", "发送验证代码成功！")
+        except Exception as e:
+            write_log("Error in send_email", f"{e.__class__.__name__}: {e}")
+            btn.setText("发送验证代码")
+            QMessageBox.critical(win, "错误", "发送验证代码失败！")
+        finally:
+            try:
+                smtpObj.quit()
+            except:
+                pass
+
+    def registration_account(self, name, psw1, psw2, email, check_code, btn, *labels):
+        global check_code_error_num, check_code_error_time
+        now = time()
+        if not check_name(name):
+            QMessageBox.critical(win, "错误", "昵称不合规，请换一个重试！")
+            return
+        if not check_psw(psw1) or not check_psw(psw2):
+            QMessageBox.critical(win, "错误", "密码不合规，请换一个重试！")
+            return
+        if psw1 != psw2:
+            QMessageBox.critical(win, "错误", "两次输入的密码不一致，请检查后重试！")
+            return
+        if email != self.check_code["email"]:
+            QMessageBox.critical(win, "错误", "该邮箱与发送验证代码时输入的邮箱不一致，请检查后重试！")
+            return
+        if len(check_code) != 10:
+            QMessageBox.critical(win, "错误", "验证代码长度不正确，请检查后重试！")
+            return
+        if now - email_send_time > 600:
+            QMessageBox.critical(win, "错误", "验证代码已过期，请重新发送验证代码！")
+            return
+        if len(check_code) == 0:
+            QMessageBox.critical(win, "错误", "验证代码不能为空！")
+            return
+        if hash_base(check_code) != self.check_code["check_code"]:  # 验证码不对
+            if time() - check_code_error_time < 600:  # 距离上一次输错5次的时间在10分钟以内
+                QMessageBox.critical(win, "错误",
+                                     f"请{int((600 - (time() - check_code_error_time)) / 60)}分{int((600 - (time() - check_code_error_time)) % 60)}秒后重试！")
+                return
+            else:
+                check_code_error_num += 1
+                if check_code_error_num % 5 == 0:
+                    check_code_error_num = 0
+                    check_code_error_time = time()
+                    change_file(sls_path, "w")
+                    QMessageBox.critical(win, "错误", "验证代码错误次数过多，请10分0秒后重试！")
+                    return
+            change_file(sls_path, "w")
+            QMessageBox.critical(win, "错误", f"验证代码错误，剩余{5 - check_code_error_num}次机会，请检查后重试！")
+            return
+        check_code_error_num = 0
+        check_code_error_time = 0.0
+        change_file(sls_path, "w")
+        # 终于开始写注册功能了！
+        if not assess_network_status():
+            QMessageBox.critical(win, "错误", "当前网络无法访问服务器，请检查网络设置后重试！")
+            return
+        funcs.check_code = {"email": "example@example.com", "check_code": "9178132778"}
+        new_user_data = {"name": name, "login_password": hash_base(psw1), "email": email, "salt": salt,
+                         "last_login_time": now, "last_online_time": now, "mac_address": hash_base(get_mac_address()),
+                         "status": ["Normal", 0]}
+        ftp = None
+        try:
+            ftp = FTP()
+            ftp.connect("hd01.idc-icp.com", 21, timeout=10)
+            ftp.login("free68153", "BeiXunStudio666")
+            ftp.set_pasv(True)
+            ftp.cwd("/wwwroot/BeiXunLockScreen/accounts")
+            filename = f"{b32encode(email.encode('utf-8')).decode('utf-8')}.txt"
+            accounts = ftp.nlst()
+            if filename in accounts:
+                ftp.quit()
+                QMessageBox.critical(win, "错误", "该邮箱已注册，请换一个重试！")
+                return
+            file_obj = BytesIO(new_base(str(new_user_data)).encode("utf-8"))
+            ftp.storbinary(f'STOR {filename}', file_obj)
+            ftp.quit()
+            self.back_login(*labels)
+            QMessageBox.information(win, "提示", "注册成功！")
+        except Exception as e:
+            write_log("Error in registration_account", f"{e.__class__.__name__}: {e}")
+            if ftp:
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
+            QMessageBox.critical(win, "错误", "注册失败！")
+
+    def login_account(self, name_or_email_entry, login_password_entry, *labels):
+        if not name_or_email_entry or not login_password_entry:
+            QMessageBox.critical(win, "错误", "账号或密码不能为空，请检查后重试！")
+            return
+        ftp = None
+        try:
+            ftp = FTP()
+            ftp.connect("hd01.idc-icp.com", 21, timeout=10)
+            ftp.login("free68153", "BeiXunStudio666")
+            ftp.set_pasv(True)
+            ftp.cwd("/wwwroot/BeiXunLockScreen/accounts")
+            filename = f"{b32encode(name_or_email_entry.encode('utf-8')).decode('utf-8')}.txt"
+            accounts = ftp.nlst()
+            print(filename, accounts)
+            if filename in accounts:
+                lines = []
+                ftp.retrlines(f'RETR {filename}', lines.append)
+                tmp_userdata = li_eval(new_base('\n'.join(lines), True))
+                if hash_base(login_password_entry, tmp_userdata["salt"]) == tmp_userdata["login_password"]:
+                    ftp.quit()
+                    self.set_privacy(*labels)
+                    QMessageBox.information(win, "提示", "登录成功！")
+                else:
+                    ftp.quit()
+                    QMessageBox.critical(win, "错误", "账号或密码错误，请检查后重试！")
+            else:
+                ftp.quit()
+                QMessageBox.critical(win, "错误", "账号或密码错误，请检查后重试！")
+        except Exception as e:
+            write_log("Error in login_account", f"{e.__class__.__name__}: {e}")
+            if ftp:
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
+            QMessageBox.critical(win, "错误", "登录失败！")
+
+    def next_basic_Settings(self, entry1, entry2, *labels):
+        global lock_password, page_num
+        if entry1 != entry2:
+            QMessageBox.critical(win, "错误", "两次输入的密码不一致，请检查后重试！")
+            return
+        if not entry1:
+            QMessageBox.critical(win, "错误", "密码不能为空，请检查后重试！")
+            return
+        if not check_psw(entry1):
+            QMessageBox.critical(win, "错误", "密码不合规，请换一个重试！")
+            return
+        lock_password = hash_base(entry1)
+        change_file(psw_path, "w")
+        page_num = 5
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.basic_settings()
+        self.out_frame_animation(pages.ps_frame, frame_effect=pages.ps_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.bs_frame, frame_effect=pages.bs_effect,
+                                                                           click_flag=True))
+        QMessageBox.information(win, "提示", "锁屏密码设置成功！")
+
+    def next_using_tutorial(self, *labels):
+        page_num = 6
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.using_tutorial()
+        self.out_frame_animation(pages.bs_frame, frame_effect=pages.bs_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.ut_frame, frame_effect=pages.ut_effect,
+                                                                           click_flag=True))
+        QMessageBox.information(win, "提示", "设置成功！")
+
+    def next_finally_notice(self, *labels):
+        page_num = 7
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        pages.finally_notice()
+        self.out_frame_animation(pages.ut_frame, frame_effect=pages.ut_effect, click_flag=True,
+                                 on_finish=lambda: self.in_frame_animation(pages.fn_frame, frame_effect=pages.fn_effect,
+                                                                           click_flag=True))
+
+    def go_home(self, *labels):
+        page_num = 0
+        for label in labels:
+            label.setCursor(Qt.ForbiddenCursor)
+            label.clicked.disconnect()
+        self.out_frame_animation(pages.fn_frame, frame_effect=pages.fn_effect, click_flag=True,
+                                 on_finish=lambda: exec(""))
+
+    def toggle_password_visibility(self, eye_btn, *entrys):
+        for entry in entrys:
+            # 如果当前是密码模式（隐藏），则切换为明文模式
+            if entry.echoMode() == QLineEdit.EchoMode.Password:
+                entry.setEchoMode(QLineEdit.EchoMode.Normal)
+                eye_btn.setText("🙈")  # 切换为闭眼图标，表示点击可隐藏
+            else:
+                # 否则，切换回密码模式
+                entry.setEchoMode(QLineEdit.EchoMode.Password)
+                eye_btn.setText("👁️")  # 切换为睁眼图标，表示点击可显示
+
+
+class Pages:
+    def __init__(self, main_win):
+        self.main_win = main_win
+        self.btn_width = int(screen_width / (1920 / 150))
+        self.btn_height = int(screen_height / (1080 / 60))
+
+        self.fu_frame = QFrame(main_win)
+        self.fu_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.fu_frame.setFixedSize(f_width, f_height)
+        self.fu_effect = QGraphicsOpacityEffect(self.fu_frame)
+        self.fu_effect.setOpacity(0)
+        self.fu_frame.setGraphicsEffect(self.fu_effect)
+        self.fu_frame.move(screen_width, screen_height)
+        self.fu_frame.hide()
+
+        self.al_frame = QFrame(main_win)
+        self.al_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.al_frame.setFixedSize(f_width, f_height)
+        self.al_effect = QGraphicsOpacityEffect(self.al_frame)
+        self.al_effect.setOpacity(0)
+        self.al_frame.setGraphicsEffect(self.al_effect)
+        self.al_frame.move(screen_width, screen_height)
+        self.al_frame.hide()
+
+        self.ar_frame = QFrame(main_win)
+        self.ar_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.ar_frame.setFixedSize(f_width, f_height)
+        self.ar_effect = QGraphicsOpacityEffect(self.ar_frame)
+        self.ar_effect.setOpacity(0)
+        self.ar_frame.setGraphicsEffect(self.ar_effect)
+        self.ar_frame.move(screen_width, screen_height)
+        self.ar_frame.hide()
+
+        self.ps_frame = QFrame(main_win)
+        self.ps_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.ps_frame.setFixedSize(f_width, f_height)
+        self.ps_effect = QGraphicsOpacityEffect(self.ps_frame)
+        self.ps_effect.setOpacity(0)
+        self.ps_frame.setGraphicsEffect(self.ps_effect)
+        self.ps_frame.move(screen_width, screen_height)
+        self.ps_frame.hide()
+
+        self.bs_frame = QFrame(main_win)
+        self.bs_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.bs_frame.setFixedSize(f_width, f_height)
+        self.bs_effect = QGraphicsOpacityEffect(self.bs_frame)
+        self.bs_effect.setOpacity(0)
+        self.bs_frame.setGraphicsEffect(self.bs_effect)
+        self.bs_frame.move(screen_width, screen_height)
+        self.bs_frame.hide()
+
+        self.ut_frame = QFrame(main_win)
+        self.ut_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.ut_frame.setFixedSize(f_width, f_height)
+        self.ut_effect = QGraphicsOpacityEffect(self.ut_frame)
+        self.ut_effect.setOpacity(0)
+        self.ut_frame.setGraphicsEffect(self.ut_effect)
+        self.ut_frame.move(screen_width, screen_height)
+        self.ut_frame.hide()
+
+        self.fn_frame = QFrame(main_win)
+        self.fn_frame.setStyleSheet(f"QFrame{{background-color: skyblue; border-radius: {corner_radius}px}}")
+        self.fn_frame.setFixedSize(f_width, f_height)
+        self.fn_effect = QGraphicsOpacityEffect(self.fn_frame)
+        self.fn_effect.setOpacity(0)
+        self.fn_frame.setGraphicsEffect(self.fn_effect)
+        self.fn_frame.move(screen_width, screen_height)
+        self.fn_frame.hide()
+
+        self.frames_pos_set_flags = {
+            id(win.big_text): {"x": True, "y": False},
+            id(win.ver_text): {"x": False, "y": False},
+            id(win.logo_label): {"x": True, "y": False},
+            id(self.fu_frame): {"x": False, "y": True},
+            id(self.al_frame): {"x": False, "y": True},
+            id(self.ar_frame): {"x": False, "y": True},
+            id(self.ps_frame): {"x": False, "y": True},
+            id(self.bs_frame): {"x": False, "y": True},
+            id(self.ut_frame): {"x": False, "y": True},
+            id(self.fn_frame): {"x": False, "y": True}
+        }
+        self.move_statuss = {id(self.fu_frame): "stay", id(self.al_frame): "stay", id(self.ar_frame): "stay",
+                             id(self.ps_frame): "stay", id(self.bs_frame): "stay", id(self.ut_frame): "stay",
+                             id(self.fn_frame): "stay"}
+
+    def agree_agreement(self):
+        global page_num
+        page_num = 1
+        funcs.clear_all_components(pages.fu_frame, False)
+        step_text = QLabel("(1/7)：同意协议", self.fu_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+        agreement_text = QTextEdit(self.fu_frame)
+        agreement_text.setFixedSize(f_width - 2 * spacing,
+                                    f_height - step_text.height() - self.btn_height - 4 * spacing)
+        agreement_text.setStyleSheet(f"""QTextEdit{{
+                        background-color: white;
+                        color: black;
+                        border-radius: {corner_radius}px;
+                        padding: {spacing}px;
+                        border: 2px solid black;
+                }}""")
+        agreement_text.setFont(font(15))
+        agreement_text.setPlaceholderText("在此输入协议内容...")
+        agreement_text.setReadOnly(True)
+        agreement_text.move((f_width - agreement_text.width()) // 2, step_text.height() + 2 * spacing)
+        refuse_btn = QPushButton("我拒绝\n退出使用软件", self.fu_frame)
+        refuse_btn.setFixedSize(self.btn_width, self.btn_height)
+        refuse_btn.setFont(font(15))
+        refuse_btn.setStyleSheet(f"""
+            QPushButton {{
+                color: white;
+                background-color: red;
+                border-radius: {corner_radius}px;
+                border: 2px solid black;
+            }}
+            QPushButton:hover {{
+                background-color: white;
+                color: black;
+                cursor: PointingHandCursor;
+            }}""")
+        refuse_btn.setCursor(Qt.PointingHandCursor)
+        refuse_btn.clicked.connect(lambda: sys.exit(0))
+        refuse_btn.move(spacing, f_height - self.btn_height - spacing)
+        allow_btn = QPushButton("我同意\n继续使用软件", self.fu_frame)
+        allow_btn.setFixedSize(self.btn_width, self.btn_height)
+        allow_btn.setFont(font(15))
+        allow_btn.setStyleSheet(f"""
+            QPushButton {{
+                color: black;
+                background-color: lightgreen;
+                border-radius: {corner_radius}px;
+                border: 2px solid black;
+            }}
+            QPushButton:hover {{
+                background-color: white;
+                color: black;
+                border: 2px solid black;
+            }}""")
+        allow_btn.setCursor(Qt.PointingHandCursor)
+        allow_btn.clicked.connect(lambda: QTimer.singleShot(0, lambda: funcs.agreeing_agreement(refuse_btn, allow_btn)))
+        allow_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+
+        self.fu_frame.show()
+
+    def account_login(self):
+        global page_num
+        page_num = 2
+        funcs.clear_all_components(pages.al_frame, False)
+
+        step_text = QLabel("(2/7)：账号登录", self.al_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        username_text = QLabel("请输入昵称或电子邮箱地址：", self.al_frame)
+        username_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        username_text.setFont(font())
+        username_text.adjustSize()
+        username_text.move(spacing, step_text.height() + 2 * spacing)
+        username_entry = QLineEdit(self.al_frame)
+        username_entry.setFixedSize(f_width - username_text.width() - 2 * spacing, username_text.height())
+        username_entry.setStyleSheet(f"""QLineEdit{{
+                                             color: black;
+                                             background-color: white;
+                                             color: black;
+                                             border: 2px solid black;}}
+                                             QLineEdit:focus {{
+                                             border-color: lightgreen;
+                                             }}""")
+        username_entry.setFont(font(15))
+        username_entry.move(username_text.x() + username_text.width(), username_text.y())
+
+        password_text = QLabel("请输入登录密码：", self.al_frame)
+        password_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        password_text.setFont(font())
+        password_text.adjustSize()
+        password_text.move(spacing, username_text.y() + username_text.height() + spacing)
+
+        password_entry = QLineEdit(self.al_frame)
+        password_entry.setFixedSize(f_width - password_text.width() - 2 * spacing, password_text.height())
+        password_entry.setStyleSheet(f"""QLineEdit{{
+                                             color: black;
+                                             background-color: white;
+                                             color: black;
+                                             border: 2px solid black;}}
+                                             QLineEdit:focus {{
+                                             border-color: lightgreen;
+                                             }}""")
+        password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        password_entry.setFont(font(15))
+        password_entry.setMaxLength(32)
+        password_entry.move(password_text.x() + password_text.width(), password_text.y())
+
+        register_text = ClickableLabel("还没有账号？点我注册>>", self.al_frame)
+        register_text.setStyleSheet("""
+                                        QLabel{
+                                            color: blue;
+                                            background-color: skyblue;
+                                        }""")
+        register_text.setFont(font())
+        register_text.adjustSize()
+        register_text.setCursor(Qt.PointingHandCursor)
+        register_text.clicked.connect(lambda: funcs.next_registration(back_btn, login_btn, register_text))
+        register_text.move(f_width - register_text.width() - spacing,
+                           password_text.y() + password_text.height() + spacing)
+
+        jump_text = ClickableLabel("不想登录？点我跳过>>", self.al_frame)
+        jump_text.setStyleSheet("""
+                                                QLabel{
+                                                    color: blue;
+                                                    background-color: skyblue;
+                                                }""")
+        jump_text.setFont(font())
+        jump_text.adjustSize()
+        jump_text.setCursor(Qt.PointingHandCursor)
+        jump_text.clicked.connect(lambda: funcs.set_privacy(back_btn, login_btn, register_text, jump_text))
+        jump_text.move(f_width - jump_text.width() - spacing, register_text.y() + register_text.height() + spacing)
+
+        eye_btn = QPushButton("👁️", self.al_frame)
+        eye_btn.setFixedSize(register_text.height(), register_text.height())
+        eye_btn.setStyleSheet(f"""
+                                                    QPushButton {{
+                                                        color: black;
+                                                        background-color: skyblue;
+                                                        border: 2px solid skyblue;
+                                                    }}
+                                                    QPushButton:hover {{
+                                                        background-color: white;
+                                                    }}
+                                                    """)
+        eye_btn.setFont(font(15))
+        eye_btn.setCursor(Qt.PointingHandCursor)
+        eye_btn.clicked.connect(lambda: funcs.toggle_password_visibility(eye_btn, password_entry))
+        eye_btn.move(spacing, password_entry.y() + password_entry.height() + spacing)
+
+        back_btn = QPushButton("再看看协议", self.al_frame)
+        back_btn.setFixedSize(self.btn_width, self.btn_height)
+        back_btn.setStyleSheet(f"""QPushButton {{
+                                     color: black;
+                                     background-color: orange;
+                                     border-radius: {corner_radius}px;
+                                     border: 2px solid black;
+                                 }}
+                                 QPushButton:hover {{
+                                     background-color: white;
+                                     color: black;
+                                 }}""")
+        back_btn.setFont(font(15))
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.clicked.connect(lambda: funcs.back_agreement(back_btn, login_btn, register_text))
+        back_btn.move(spacing, f_height - self.btn_height - spacing)
+
+        login_btn = QPushButton("登录", self.al_frame)
+        login_btn.setFixedSize(self.btn_width, self.btn_height)
+        login_btn.setFont(font(15))
+        login_btn.setStyleSheet(f"""
+            QPushButton {{
+                color: black;
+                background-color: lightgreen;
+                border-radius: {corner_radius}px;
+                border: 2px solid black;
+            }}
+            QPushButton:hover {{
+                background-color: white;
+                color: black;
+                border: 2px solid black;
+            }}""")
+        login_btn.setCursor(Qt.PointingHandCursor)
+        login_btn.clicked.connect(
+            lambda: funcs.login_account(username_entry.text(), password_entry.text(), back_btn, login_btn,
+                                        register_text, jump_text))
+        login_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+        self.al_frame.show()
+
+    def account_registration(self):
+        global page_num
+        page_num = 3
+        # 重置验证代码避免因为页面重建导致时间判断失效或中途更改填入的邮箱实现绕过验证代码强登或用黑客软件强读验证代码然后彩虹表暴力破解
+        funcs.check_code = {"email": "example@example.com", "check_code": "9178132778"}
+        funcs.clear_all_components(pages.ar_frame, False)
+
+        step_text = QLabel("(3/7)：账号注册", self.ar_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        username_text = QLabel("请设置昵称：", self.ar_frame)
+        username_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        username_text.setFont(font())
+        username_text.adjustSize()
+        username_text.move(spacing, step_text.height() + 2 * spacing)
+
+        username_entry = QLineEdit(self.ar_frame)
+        username_entry.setFixedSize(f_width - username_text.width() - 2 * spacing, username_text.height())
+        username_entry.setStyleSheet(f"""QLineEdit{{
+                                                     color: black;
+                                                     background-color: white;
+                                                     color: black;
+                                                     border: 2px solid black;}}
+                                                     QLineEdit:focus {{
+                                                     border-color: lightgreen;
+                                                     }}""")
+        username_entry.setFont(font(15))
+        username_entry.setMaxLength(16)
+        username_entry.move(username_text.x() + username_text.width(), username_text.y())
+
+        email_text = QLabel("请输入电子邮箱地址：", self.ar_frame)
+        email_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        email_text.setFont(font())
+        email_text.adjustSize()
+        email_text.move(spacing, username_text.y() + username_text.height() + spacing)
+
+        email_entry = QLineEdit(self.ar_frame)
+        email_entry.setFixedSize(f_width - email_text.width() - 2 * spacing, email_text.height())
+        email_entry.setStyleSheet(f"""QLineEdit{{
+                                                             color: black;
+                                                             background-color: white;
+                                                             color: black;
+                                                             border: 2px solid black;}}
+                                                             QLineEdit:focus {{
+                                                             border-color: lightgreen;
+                                                             }}""")
+        email_entry.setFont(font(15))
+        email_entry.move(email_text.x() + email_text.width(), email_text.y())
+
+        password_text = QLabel("请设置登录密码：", self.ar_frame)
+        password_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        password_text.setFont(font())
+        password_text.adjustSize()
+        password_text.move(spacing, email_text.y() + email_text.height() + spacing)
+
+        password_entry = QLineEdit(self.ar_frame)
+        password_entry.setFixedSize(f_width - password_text.width() - 2 * spacing, password_text.height())
+        password_entry.setStyleSheet(f"""QLineEdit{{
+                                                     color: black;
+                                                     background-color: white;
+                                                     color: black;
+                                                     border: 2px solid black;}}
+                                                     QLineEdit:focus {{
+                                                     border-color: lightgreen;
+                                                     }}""")
+        password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        password_entry.setFont(font(15))
+        password_entry.setMaxLength(32)
+        password_entry.move(password_text.x() + password_text.width(), password_text.y())
+
+        check_password_text = QLabel("请确认登录密码：", self.ar_frame)
+        check_password_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        check_password_text.setFont(font())
+        check_password_text.adjustSize()
+        check_password_text.move(spacing, password_text.y() + password_text.height() + spacing)
+
+        check_password_entry = QLineEdit(self.ar_frame)
+        check_password_entry.setFixedSize(f_width - check_password_text.width() - 2 * spacing,
+                                          check_password_text.height())
+        check_password_entry.setStyleSheet(f"""QLineEdit{{
+                                                             color: black;
+                                                             background-color: white;
+                                                             color: black;
+                                                             border: 2px solid black;}}
+                                                             QLineEdit:focus {{
+                                                             border-color: lightgreen;
+                                                             }}""")
+        check_password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        check_password_entry.setFont(font(15))
+        check_password_entry.setMaxLength(32)
+        check_password_entry.move(check_password_text.x() + check_password_text.width(), check_password_text.y())
+
+        checkcode_text = QLabel("请输入验证代码：", self.ar_frame)
+        checkcode_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        checkcode_text.setFont(font())
+        checkcode_text.adjustSize()
+        checkcode_text.move(spacing, check_password_entry.y() + check_password_entry.height() + spacing)
+
+        send_checkcode_btn = QPushButton("发送验证代码", self.ar_frame)
+        send_checkcode_btn.setFixedSize(self.btn_width, checkcode_text.height())
+        send_checkcode_btn.setStyleSheet(f"""
+                            QPushButton {{
+                                color: black;
+                                background-color: yellow;
+                                border-radius: {corner_radius}px;
+                                border: 2px solid black;
+                            }}
+                            QPushButton:hover {{
+                                background-color: white;
+                                color: black;
+                                border: 2px solid black;
+                            }}""")
+        send_checkcode_btn.setFont(font(15))
+        send_checkcode_btn.clicked.connect(lambda: funcs.send_email(email_entry, send_checkcode_btn))
+        send_checkcode_btn.setCursor(Qt.PointingHandCursor)
+        send_checkcode_btn.move(checkcode_text.x() + checkcode_text.width(), checkcode_text.y())
+
+        checkcode_entry = QLineEdit(self.ar_frame)
+        checkcode_entry.setFixedSize(f_width - checkcode_text.width() - send_checkcode_btn.width() - 2 * spacing,
+                                     checkcode_text.height())
+        checkcode_entry.setStyleSheet(f"""QLineEdit{{
+                                                                     color: black;
+                                                                     background-color: white;
+                                                                     color: black;
+                                                                     border: 2px solid black;}}
+                                                                     QLineEdit:focus {{
+                                                                     border-color: lightgreen;
+                                                                     }}""")
+        checkcode_entry.setFont(font(15))
+        regex = QRegularExpression(r'^\d{1,10}$')
+        checkcode_entry.setValidator(QRegularExpressionValidator(regex))
+        checkcode_entry.move(send_checkcode_btn.x() + send_checkcode_btn.width(), send_checkcode_btn.y())
+
+        back_login_label = ClickableLabel("<<已有账号？点我登录", self.ar_frame)
+        back_login_label.setStyleSheet("""
+                                        QLabel{
+                                            color: blue;
+                                            background-color: skyblue;
+                                        }""")
+        back_login_label.setFont(font())
+        back_login_label.adjustSize()
+        back_login_label.setCursor(Qt.PointingHandCursor)
+        back_login_label.clicked.connect(funcs.back_login)
+        back_login_label.move(spacing, checkcode_text.y() + checkcode_text.height() + spacing)
+
+        eye_btn = QPushButton("👁️", self.ar_frame)
+        eye_btn.setFixedSize(back_login_label.height(), back_login_label.height())
+        eye_btn.setStyleSheet(f"""
+                                            QPushButton {{
+                                                color: black;
+                                                background-color: skyblue;
+                                                border: 2px solid skyblue;
+                                            }}
+                                            QPushButton:hover {{
+                                                background-color: white;
+                                            }}
+                                            """)
+        eye_btn.setFont(font(15))
+        eye_btn.setCursor(Qt.PointingHandCursor)
+        eye_btn.clicked.connect(lambda: funcs.toggle_password_visibility(eye_btn, password_entry, check_password_entry))
+        eye_btn.move(f_width - back_login_label.height() - spacing,
+                     checkcode_entry.y() + checkcode_entry.height() + spacing)
+
+        registration_btn = QPushButton("注册", self.ar_frame)
+        registration_btn.setFixedSize(self.btn_width, self.btn_height)
+        registration_btn.setFont(font(15))
+        registration_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        color: black;
+                        background-color: lightgreen;
+                        border-radius: {corner_radius}px;
+                        border: 2px solid black;
+                    }}
+                    QPushButton:hover {{
+                        background-color: white;
+                        color: black;
+                        border: 2px solid black;
+                    }}""")
+        registration_btn.clicked.connect(
+            lambda: funcs.registration_account(username_entry.text().strip(), password_entry.text(),
+                                               check_password_entry.text(), email_entry.text(), checkcode_entry.text(),
+                                               registration_btn, back_login_label, eye_btn, send_checkcode_btn,
+                                               registration_btn))
+        registration_btn.setCursor(Qt.PointingHandCursor)
+        registration_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+
+        info_text = QLabel("昵称长度限制16个字符（一个汉字算作两个字符），不允许包含“@”\n"
+                           "仅允许中英文字符、数字、空格（不能全是）和常见符号\n"
+                           "密码长度限制8至32以内（包含8和32）\n"
+                           "仅允许英文字符、数字、空格（不能全是）和常见符号\n"
+                           "验证代码长度固定10个数字", self.ar_frame)
+        info_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        info_text.setFont(font(15))
+        info_text.adjustSize()
+        info_text.move((f_width - info_text.width()) // 2, eye_btn.y() + eye_btn.height() + spacing)
+
+        self.ar_frame.show()
+
+    def privacy_settings(self):
+        global page_num
+        page_num = 4
+        funcs.clear_all_components(pages.ps_frame, False)
+        step_text = QLabel("(4/7)：隐私设置", self.ps_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        lock_password_text = QLabel("请输入锁屏密码：", self.ps_frame)
+        lock_password_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        lock_password_text.setFont(font())
+        lock_password_text.adjustSize()
+        lock_password_text.move(spacing, step_text.y() + step_text.height() + spacing)
+
+        lock_password_entry = QLineEdit(self.ps_frame)
+        lock_password_entry.setFixedSize(f_width - lock_password_text.width() - 2 * spacing,
+                                         lock_password_text.height())
+        lock_password_entry.setStyleSheet(f"""QLineEdit{{
+                                                                     color: black;
+                                                                     background-color: white;
+                                                                     color: black;
+                                                                     border: 2px solid black;}}
+                                                                     QLineEdit:focus {{
+                                                                     border-color: lightgreen;
+                                                                     }}""")
+        lock_password_entry.setFont(font(15))
+        lock_password_entry.setMaxLength(32)
+        lock_password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        lock_password_entry.move(lock_password_text.x() + lock_password_text.width(), lock_password_text.y())
+
+        trust_lock_password_text = QLabel("请确认锁屏密码：", self.ps_frame)
+        trust_lock_password_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        trust_lock_password_text.setFont(font())
+        trust_lock_password_text.adjustSize()
+        trust_lock_password_text.move(spacing, lock_password_text.y() + lock_password_text.height() + spacing)
+
+        trust_lock_password_entry = QLineEdit(self.ps_frame)
+        trust_lock_password_entry.setFixedSize(f_width - trust_lock_password_text.width() - 2 * spacing,
+                                               trust_lock_password_text.height())
+        trust_lock_password_entry.setStyleSheet(f"""QLineEdit{{
+                                                                             color: black;
+                                                                             background-color: white;
+                                                                             color: black;
+                                                                             border: 2px solid black;}}
+                                                                             QLineEdit:focus {{
+                                                                             border-color: lightgreen;
+                                                                             }}""")
+        trust_lock_password_entry.setFont(font(15))
+        trust_lock_password_entry.setMaxLength(32)
+        trust_lock_password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        trust_lock_password_entry.move(trust_lock_password_text.x() + trust_lock_password_text.width(),
+                                       trust_lock_password_text.y())
+
+        eye_btn = QPushButton("👁️", self.ps_frame)
+        eye_btn.setFixedSize(trust_lock_password_text.height(), trust_lock_password_text.height())
+        eye_btn.setStyleSheet(f"""
+                                                            QPushButton {{
+                                                                color: black;
+                                                                background-color: skyblue;
+                                                                border: 2px solid skyblue;
+                                                            }}
+                                                            QPushButton:hover {{
+                                                                background-color: white;
+                                                            }}
+                                                            """)
+        eye_btn.setFont(font(15))
+        eye_btn.setCursor(Qt.PointingHandCursor)
+        eye_btn.clicked.connect(
+            lambda: funcs.toggle_password_visibility(eye_btn, lock_password_entry, trust_lock_password_entry))
+        eye_btn.move(f_width - trust_lock_password_text.height() - spacing,
+                     trust_lock_password_entry.y() + trust_lock_password_entry.height() + spacing)
+
+        next_btn = QPushButton("下一步", self.ps_frame)
+        next_btn.setFixedSize(self.btn_width, self.btn_height)
+        next_btn.setFont(font(15))
+        next_btn.setStyleSheet(f"""
+                            QPushButton {{
+                                color: black;
+                                background-color: yellow;
+                                border-radius: {corner_radius}px;
+                                border: 2px solid black;
+                            }}
+                            QPushButton:hover {{
+                                background-color: white;
+                            }}""")
+        next_btn.clicked.connect(
+            lambda: funcs.next_basic_Settings(lock_password_entry.text(), trust_lock_password_entry.text(), next_btn,
+                                              back_registration_label))
+        next_btn.setCursor(Qt.PointingHandCursor)
+        next_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+
+        back_registration_label = ClickableLabel("<<返回注册", self.ps_frame)
+        back_registration_label.setStyleSheet("""
+                                        QLabel{
+                                            color: blue;
+                                            background-color: skyblue;
+                                        }""")
+        back_registration_label.setFont(font())
+        back_registration_label.adjustSize()
+        back_registration_label.setCursor(Qt.PointingHandCursor)
+        back_registration_label.clicked.connect(lambda: funcs.back_registration(back_registration_label, next_btn))
+        back_registration_label.move(spacing,
+                                     trust_lock_password_text.y() + trust_lock_password_text.height() + spacing)
+
+        info_text = QLabel("锁屏密码与登录密码要求一致", self.ps_frame)
+        info_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        info_text.setFont(font(15))
+        info_text.adjustSize()
+        info_text.move((f_width - info_text.width()) // 2,
+                       back_registration_label.y() + back_registration_label.height() + spacing)
+
+        self.ps_frame.show()
+
+    def basic_settings(self):
+        global page_num
+        page_num = 5
+        funcs.clear_all_components(self.bs_frame, False)
+        step_text = QLabel("(5/7)：基本设置", self.bs_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        # 开机自启动
+        text1 = QLabel("开机自启动", self.bs_frame)
+        text1.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        text1.setFont(font())
+        text1.adjustSize()
+        text1.move(spacing, step_text.y() + step_text.height() + spacing)
+        switch1 = SwitchButton(self.bs_frame)
+        switch1.setStatus(False)
+        switch1.resize(text1.height() * 2, text1.height())
+        switch1.move(text1.x() + text1.width() + spacing, text1.y())
+
+        # 动态锁屏壁纸
+        text2 = QLabel("动态锁屏壁纸", self.bs_frame)
+        text2.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        text2.setFont(font())
+        text2.adjustSize()
+        text2.move(spacing, switch1.y() + switch1.height() + spacing)
+        switch2 = SwitchButton(self.bs_frame)
+        switch2.setStatus(False)
+        switch2.resize(text2.height() * 2, text2.height())
+        switch2.move(text2.x() + text2.width() + spacing, text2.y())
+
+        # 下一步
+        next_btn = QPushButton("下一步", self.bs_frame)
+        next_btn.setFixedSize(self.btn_width, self.btn_height)
+        next_btn.setFont(font(15))
+        next_btn.setStyleSheet(f"""
+                            QPushButton {{
+                                color: black;
+                                background-color: yellow;
+                                border-radius: {corner_radius}px;
+                                border: 2px solid black;
+                            }}
+                            QPushButton:hover {{
+                                background-color: white;
+                            }}""")
+        next_btn.clicked.connect(lambda: funcs.next_using_tutorial(next_btn))
+        next_btn.setCursor(Qt.PointingHandCursor)
+        next_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+
+        self.bs_frame.show()
+
+    def using_tutorial(self):
+        global page_num
+        page_num = 6
+        funcs.clear_all_components(self.ut_frame, False)
+        step_text = QLabel("(6/7)：使用教程", self.ut_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        # 下一步
+        next_btn = QPushButton("下一步", self.ut_frame)
+        next_btn.setFixedSize(self.btn_width, self.btn_height)
+        next_btn.setFont(font(15))
+        next_btn.setStyleSheet(f"""
+                                   QPushButton {{
+                                       color: black;
+                                       background-color: yellow;
+                                       border-radius: {corner_radius}px;
+                                       border: 2px solid black;
+                                   }}
+                                   QPushButton:hover {{
+                                       background-color: white;
+                                   }}""")
+        next_btn.clicked.connect(lambda: funcs.next_finally_notice(next_btn))
+        next_btn.setCursor(Qt.PointingHandCursor)
+        next_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+        self.ut_frame.show()
+
+    def finally_notice(self):
+        global page_num
+        page_num = 7
+        funcs.clear_all_components(self.fn_frame, False)
+        step_text = QLabel("(7/7)：最终告知", self.fn_frame)
+        step_text.setStyleSheet("QLabel{color: black; background-color: skyblue;}")
+        step_text.setFont(font())
+        step_text.adjustSize()
+        step_text.move((f_width - step_text.width()) // 2, spacing)
+
+        # 下一步
+        next_btn = QPushButton("完成", self.fn_frame)
+        next_btn.setFixedSize(self.btn_width, self.btn_height)
+        next_btn.setFont(font(15))
+        next_btn.setStyleSheet(f"""
+                                   QPushButton {{
+                                       color: black;
+                                       background-color: yellow;
+                                       border-radius: {corner_radius}px;
+                                       border: 2px solid black;
+                                   }}
+                                   QPushButton:hover {{
+                                       background-color: white;
+                                   }}""")
+        next_btn.clicked.connect(lambda: funcs.go_home(next_btn))
+        next_btn.setCursor(Qt.PointingHandCursor)
+        next_btn.move(f_width - self.btn_width - spacing, f_height - self.btn_height - spacing)
+        self.fn_frame.show()
+
+
+class MainWin(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("北寻启屏")
+        self.setWindowIcon(QIcon("sunset-images\\icon.ico"))
+        self.resize(win_width, win_height)
+        self.setMinimumSize(f_width, f_height)
+
+        self.bg_pixmap = QPixmap("sunset-images\\background.jpg")
+        self.bg_palette = QPalette()
+        self.scaled_pixmap = self.bg_pixmap.scaled(
+            self.size(),
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation
+        )
+        self.bg_palette.setBrush(QPalette.Window, self.scaled_pixmap)
+        self.setPalette(self.bg_palette)
+
+        self.big_text = OutlinedLabel("欢迎使用北寻启屏", self, outline_width=2)
+        self.big_text.setFont(font(30))
+        self.big_text.adjustSize()
+        self.big_text.move((win_width - self.big_text.width()) // 2, spacing - (1 + 19) * 19 / 2)
+        self.ver_text = OutlinedLabel(f"版本号：{version}", self, outline_width=2)
+        self.ver_text.setFont(font(12))
+        self.ver_text.adjustSize()
+        self.ver_text.move(spacing - (1 + 19) * 19 / 2, spacing - (1 + 19) * 19 / 2)
+
+        self.logo_label = QLabel(self)
+        self.logo_label.setPixmap(
+            QPixmap(logo_path).scaled(logo_width, logo_height, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.logo_label.setFixedSize(logo_width, logo_height)
+        self.logo_label.setAlignment(Qt.AlignCenter)
+        self.logo_label.setAttribute(Qt.WA_TranslucentBackground)
+        self.logo_label.move((win_width - logo_width) // 2, (win_height - logo_height) // 2 - (1 + 39) * 39 / 2)
+
+    def resizeEvent(self, _):
+        global win_width, win_height
+        win_width = self.width()
+        win_height = self.height()
+        if self.bg_pixmap.isNull():
+            return
+        self.scaled_pixmap = self.bg_pixmap.scaled(
+            self.size(),
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation
+        )
+        self.bg_palette.setBrush(QPalette.Window, self.scaled_pixmap)
+        self.setPalette(self.bg_palette)
+
+        self.big_text.move(((win_width - self.big_text.width()) // 2) if pages.frames_pos_set_flags[id(self.big_text)][
+            "x"] else self.big_text.x(),
+                           spacing if pages.frames_pos_set_flags[id(self.big_text)]["y"] else self.big_text.y())
+        self.big_text.raise_()
+
+        self.ver_text.move(spacing if pages.frames_pos_set_flags[id(self.ver_text)]["x"] else self.ver_text.x(),
+                           spacing if pages.frames_pos_set_flags[id(self.ver_text)]["y"] else self.ver_text.y())
+        self.ver_text.raise_()
+        if hasattr(self, "logo_label"):
+            if id(self.logo_label) in pages.frames_pos_set_flags:
+                self.logo_label.move(((win_width - logo_width) // 2) if pages.frames_pos_set_flags[id(self.logo_label)][
+                    "x"] else self.logo_label.x(),
+                                     ((win_height - logo_height) // 2) if
+                                     pages.frames_pos_set_flags[id(self.logo_label)]["y"] else self.logo_label.y())
+            else:
+                del self.logo_label
+
+        pages.fu_frame.move(((win_width - f_width) // 2) if pages.frames_pos_set_flags[id(pages.fu_frame)][
+            "x"] else pages.fu_frame.x(),
+                            ((win_height - f_height) // 2) if pages.frames_pos_set_flags[id(pages.fu_frame)][
+                                "y"] else pages.fu_frame.y())
+
+        pages.al_frame.move(((win_width - f_width) // 2) if pages.frames_pos_set_flags[id(pages.al_frame)][
+            "x"] else pages.al_frame.x(),
+                            ((win_height - f_height) // 2) if pages.frames_pos_set_flags[id(pages.al_frame)][
+                                "y"] else pages.al_frame.y())
+
+        pages.ar_frame.move(((win_width - f_width) // 2) if pages.frames_pos_set_flags[id(pages.ar_frame)][
+            "x"] else pages.ar_frame.x(),
+                            ((win_height - f_height) // 2) if pages.frames_pos_set_flags[id(pages.ar_frame)][
+                                "y"] else pages.ar_frame.y())
+
+        pages.ps_frame.move(((win_width - f_width) // 2) if pages.frames_pos_set_flags[id(pages.ps_frame)][
+            "x"] else pages.ps_frame.x(),
+                            ((win_height - f_height) // 2) if pages.frames_pos_set_flags[id(pages.ps_frame)][
+                                "y"] else pages.ps_frame.y())
+
+
+os.makedirs(pack_path, exist_ok=True)
+set_permission(allow=False)
+tb, tsd = get_taskbar()
+psw_status, psw_result = check_file_status(psw_path)
+user_status, user_result = check_file_status(user_path)
+sls_status, sls_result = check_file_status(sls_path)
+big_error_results = ("file_not_exist", "decode_error", "content_is_not_dict")
+if psw_result in big_error_results:
+    change_file(psw_path, "w")
+if user_result in big_error_results:
+    change_file(user_path, "w")
+if sls_result in big_error_results:
+    change_file(sls_path, "w")
+
+pswdata = li_eval(change_file(psw_path, "r"))
+userdata = li_eval(change_file(user_path, "r"))
+slsdata = li_eval(change_file(sls_path, "r"))
+
+file_version = slsdata["file_version"] if "file_version" in slsdata else file_version
+lock_flag = slsdata["lock_flag"] if "lock_flag" in slsdata else lock_flag
+unlock_error_time = slsdata["unlock_error_time"] if "unlock_error_time" in slsdata else unlock_error_time
+unlock_error_num = slsdata["unlock_error_num"] if "unlock_error_num" in slsdata else unlock_error_num
+email_send_time = slsdata["email_send_time"] if "email_send_time" in slsdata else email_send_time
+check_code_error_num = slsdata["check_code_error_num"] if "check_code_error_num" in slsdata else check_code_error_num
+check_code_error_time = slsdata[
+    "check_code_error_time"] if "check_code_error_time" in slsdata else check_code_error_time
+last_login_id = slsdata["last_login_id"] if "last_login_id" in slsdata else last_login_id
+
+salt = pswdata["salt"] if "salt" in pswdata else salt
+lock_password = pswdata["lock_password"] if "lock_password" in pswdata else lock_password
+
+user_name = userdata[last_login_id]["name"] if "name" in userdata[last_login_id] else user_name
+email = userdata[last_login_id]["email"] if "email" in userdata else email
+last_login_time = userdata[last_login_id]["last_login_time"] if "last_login_time" in userdata[
+    last_login_id] else last_login_time
+
+app = QApplication(sys.argv)
+funcs = Functions()
+win = MainWin()
+pages = Pages(win)
+pages.agree_agreement()
+QTimer.singleShot(0, lambda: funcs.start_animation(win.big_text, win.ver_text, win.logo_label, 1,
+                                                   lambda: funcs.in_frame_animation(pages.fu_frame,
+                                                                                     frame_effect=pages.fu_effect,
+                                                                                    click_flag=True)
+                                                   ))
+
+win.show()
+sys.exit(app.exec())
